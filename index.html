@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="it">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>MEETAMI // Pianificatore Orari Condivisi</title>
+    <title>MEETAMI // Shared Schedule Planner</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Google Fonts: Space Grotesk, Instrument Serif, Space Mono -->
@@ -95,15 +95,20 @@
         }
         /* Celle della griglia oraria */
         .slot-cell {
-            transition: background-color 0.06s ease;
+            transition: background-color 0.05s ease;
         }
-        /* In modalità modifica, blocca lo scroll nativo quando si trascina il dito sulla griglia */
+        /* In modalità modifica, blocca lo scroll nativo SOLO sulle celle degli slot per permettere il drag-paint */
         .edit-mode-grid .slot-cell {
             touch-action: none;
         }
-        /* In modalità vista gruppo, permette lo scroll verticale fluido su mobile */
+        /* In modalità vista gruppo o scorrimento, permette lo scroll verticale/orizzontale fluido ovunque */
         .view-mode-grid .slot-cell {
-            touch-action: pan-y;
+            touch-action: pan-x pan-y;
+        }
+        /* Zone sicure di scorrimento verticale (Colonna Ore, Header, Gutter laterale) */
+        .scroll-safe-zone {
+            touch-action: pan-y !important;
+            -webkit-overflow-scrolling: touch;
         }
         .slot-cell:hover {
             outline: 1.5px solid #181816;
@@ -112,6 +117,16 @@
         .slot-inspected {
             outline: 2.5px solid #181816 !important;
             z-index: 15;
+        }
+        /* Effetto feedback immediato durante il trascinamento col dito */
+        .slot-painting-feedback {
+            transform: scale(0.96);
+        }
+        /* Pattern corsia di scorrimento laterale mobile */
+        .scroll-gutter-pattern {
+            background-color: #EFECE4;
+            background-image: radial-gradient(#181816 0.75px, transparent 0.75px);
+            background-size: 6px 6px;
         }
         /* Indicatore slot selezionato dal partecipante attivo */
         .my-slot-active {
@@ -164,7 +179,7 @@
                         </span>
                     </div>
                     <p class="text-[11px] font-mono text-inkMuted hidden md:block mt-0.5">
-                        Pianificazione incontri multi-team tramite link segreto &mdash; Nessun login richiesto
+                        Multi-team meeting scheduler via private link &mdash; No login required
                     </p>
                 </div>
             </a>
@@ -173,11 +188,11 @@
             <div class="flex items-center gap-2">
                 <button id="header-share-btn" onclick="shareOrCopyEventLink()" class="hidden btn-tactile inline-flex items-center gap-1.5 px-3 py-1.5 sm:py-2 rounded text-xs font-mono font-bold uppercase tracking-wider bg-amberWarm/30 hover:bg-amberWarm/50 text-ink">
                     <i class="fa-solid fa-share-nodes text-[11px]"></i>
-                    <span>Condividi</span>
+                    <span>Share</span>
                 </button>
                 <button onclick="openNewEventModal()" class="btn-tactile inline-flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded text-xs font-mono font-bold uppercase tracking-wider bg-terracotta text-paper">
                     <i class="fa-solid fa-plus"></i>
-                    <span>Nuovo Evento</span>
+                    <span>New Event</span>
                 </button>
             </div>
         </div>
@@ -194,9 +209,9 @@
                 <i class="fa-solid fa-link-slash text-sm"></i>
             </div>
             <div>
-                <h3 class="font-mono text-xs font-bold uppercase text-terracotta">STANZA NON TROVATA O ELIMINATA</h3>
+                <h3 class="font-mono text-xs font-bold uppercase text-terracotta">ROOM NOT FOUND OR DELETED</h3>
                 <p class="text-xs text-ink mt-1 leading-relaxed">
-                    L'evento associato a questo link non esiste più o il codice nell'URL non è corretto. Puoi creare subito un nuovo evento privato qui sotto.
+                    The event associated with this link no longer exists or the URL code is incorrect. You can create a new private event right below.
                 </p>
             </div>
         </div>
@@ -207,36 +222,36 @@
                 <div class="bg-paperDark border-b border-ink px-5 py-3 flex items-center justify-between">
                     <span class="font-mono text-xs font-bold uppercase tracking-wider text-ink flex items-center gap-2">
                         <span class="w-2.5 h-2.5 bg-terracotta border border-ink inline-block"></span>
-                        CREA UN NUOVO INCONTRO PRIVATO
+                        CREATE A NEW PRIVATE MEETING
                     </span>
                     <span class="font-mono text-[10px] px-2 py-0.5 bg-paper border border-ink">NO-LOGIN</span>
                 </div>
 
                 <form onsubmit="handleCreateEvent(event, 'landing')" class="p-5 sm:p-6 space-y-4">
                     <p class="text-xs text-inkMuted leading-relaxed">
-                        Ogni evento su <strong>Meetami</strong> è privato e accessibile esclusivamente tramite il suo link univoco. Nessun altro evento del database è visibile pubblicamente.
+                        Every event on <strong>Meetami</strong> is private and accessible exclusively via its unique link. No other events in the database are publicly visible.
                     </p>
 
                     <div>
-                        <label class="block font-mono text-[11px] font-bold uppercase text-ink mb-1">Titolo dell'incontro *</label>
-                        <input type="text" id="landing-event-title" required maxlength="60" placeholder="Es. Allineamento Design & Dev"
+                        <label class="block font-mono text-[11px] font-bold uppercase text-ink mb-1">Meeting Title *</label>
+                        <input type="text" id="landing-event-title" required maxlength="60" placeholder="e.g. Design & Dev Sync"
                             class="w-full px-3.5 py-2.5 rounded bg-paper border border-ink text-sm focus:outline-none focus:ring-2 focus:ring-terracotta">
                     </div>
 
                     <div>
-                        <label class="block font-mono text-[11px] font-bold uppercase text-ink mb-1">Note o obiettivo (opzionale)</label>
-                        <input type="text" id="landing-event-desc" maxlength="120" placeholder="Es. Scegliamo 1h tra Lunedì e Venerdì"
+                        <label class="block font-mono text-[11px] font-bold uppercase text-ink mb-1">Notes or goal (optional)</label>
+                        <input type="text" id="landing-event-desc" maxlength="120" placeholder="e.g. Pick 1h between Monday and Friday"
                             class="w-full px-3.5 py-2.5 rounded bg-paper border border-ink text-sm focus:outline-none focus:ring-2 focus:ring-terracotta">
                     </div>
 
                     <div>
-                        <label class="block font-mono text-[11px] font-bold uppercase text-ink mb-1">Il tuo nome + team (opzionale)</label>
-                        <input type="text" id="landing-event-creator" maxlength="35" placeholder="Es. Marco (Backend)"
+                        <label class="block font-mono text-[11px] font-bold uppercase text-ink mb-1">Your name + team (optional)</label>
+                        <input type="text" id="landing-event-creator" maxlength="35" placeholder="e.g. Alex (Backend)"
                             class="w-full px-3.5 py-2.5 rounded bg-paper border border-ink text-sm font-mono focus:outline-none focus:ring-2 focus:ring-terracotta">
                     </div>
 
                     <button type="submit" class="w-full btn-tactile py-3 rounded text-xs font-mono font-bold uppercase tracking-wider bg-terracotta text-paper flex items-center justify-center gap-2">
-                        <span>Genera Stanza e Link Condivisibile</span>
+                        <span>Create Room & Shareable Link</span>
                         <i class="fa-solid fa-arrow-right"></i>
                     </button>
                 </form>
@@ -247,18 +262,18 @@
                 <div class="bg-paperCard border border-ink shadow-tactile rounded-md overflow-hidden">
                     <div class="bg-paperDark border-b border-ink px-4 py-2.5">
                         <h3 class="font-mono text-xs font-bold uppercase tracking-wider text-ink">
-                            HAI GIÀ UN LINK O CODICE STANZA?
+                            HAVE A ROOM LINK OR CODE?
                         </h3>
                     </div>
                     <form onsubmit="handleOpenExistingCode(event)" class="p-4 space-y-3">
                         <p class="text-xs text-inkMuted leading-relaxed">
-                            Incolla il link completo oppure il codice dell'evento (es. <code>evt_a8f9k2</code>) ricevuto dal tuo team:
+                            Paste the full link or event code (e.g. <code>evt_a8f9k2</code>) shared by your team:
                         </p>
                         <div class="flex gap-2">
-                            <input type="text" id="join-event-code-input" required placeholder="Link o codice evt_..."
+                            <input type="text" id="join-event-code-input" required placeholder="Link or evt_... code"
                                 class="flex-1 min-w-0 px-3 py-2 text-xs font-mono bg-paper border border-ink rounded focus:outline-none focus:ring-2 focus:ring-cobalt">
                             <button type="submit" class="btn-tactile px-3.5 py-2 rounded bg-ink text-paper text-xs font-mono font-bold uppercase shrink-0">
-                                Apri
+                                Open
                             </button>
                         </div>
                     </form>
@@ -266,20 +281,20 @@
 
                 <div class="bg-paperCard border border-ink shadow-tactile rounded-md p-4 space-y-3">
                     <div class="font-mono text-[11px] font-bold uppercase text-ink border-b border-ink/20 pb-1.5">
-                        COME FUNZIONA MEETAMI //
+                        HOW MEETAMI WORKS //
                     </div>
                     <ul class="space-y-2 text-xs text-inkMuted font-mono">
                         <li class="flex items-start gap-2">
                             <span class="px-1.5 py-0.2 bg-ink text-paper text-[10px] font-bold shrink-0">01</span>
-                            <span>Crea l'evento e invia il link privato ai team.</span>
+                            <span>Create an event and send the private link to your teams.</span>
                         </li>
                         <li class="flex items-start gap-2">
                             <span class="px-1.5 py-0.2 bg-ink text-paper text-[10px] font-bold shrink-0">02</span>
-                            <span>Su telefono o PC trascina il dito sugli orari in cui sei libero, stile LettuceMeet.</span>
+                            <span>On phone or desktop, drag across the time slots when you're free.</span>
                         </li>
                         <li class="flex items-start gap-2">
                             <span class="px-1.5 py-0.2 bg-ink text-paper text-[10px] font-bold shrink-0">03</span>
-                            <span>Individua subito gli slot verdi con la massima sovrapposizione.</span>
+                            <span>Instantly spot the green slots with the highest overlap.</span>
                         </li>
                     </ul>
                 </div>
@@ -300,72 +315,72 @@
                 <div class="min-w-0 flex-1">
                     <div class="flex flex-wrap items-center gap-2 mb-1">
                         <span class="font-mono text-[10px] uppercase tracking-widest px-1.5 py-0.5 bg-sage-100 border border-ink text-ink font-bold">
-                            <i class="fa-solid fa-lock text-[9px] mr-1"></i>STANZA PRIVATA
+                            <i class="fa-solid fa-lock text-[9px] mr-1"></i>PRIVATE ROOM
                         </span>
                         <span id="current-event-id-badge" class="px-1.5 py-0.5 text-[10px] font-mono bg-paperDark text-inkMuted border border-ink/30"></span>
                     </div>
-                    <h2 id="current-event-title" class="font-bold text-ink text-lg sm:text-2xl leading-tight truncate">Titolo Evento</h2>
-                    <p id="current-event-desc" class="text-xs text-inkMuted leading-relaxed mt-0.5 line-clamp-2">Descrizione evento</p>
+                    <h2 id="current-event-title" class="font-bold text-ink text-lg sm:text-2xl leading-tight truncate">Event Title</h2>
+                    <p id="current-event-desc" class="text-xs text-inkMuted leading-relaxed mt-0.5 line-clamp-2">Event description</p>
                 </div>
 
                 <!-- Azioni Link & Eliminazione -->
                 <div class="flex flex-wrap items-center gap-2 shrink-0">
                     <button onclick="shareOrCopyEventLink()" class="btn-tactile flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded text-xs font-mono font-bold uppercase bg-amberWarm/30 hover:bg-amberWarm/50 text-ink">
                         <i class="fa-solid fa-link text-[11px]"></i>
-                        <span>Copia / Condividi Link</span>
+                        <span>Copy / Share Link</span>
                     </button>
-                    <button onclick="confirmDeleteEvent()" title="Elimina definitivamente questo evento" class="btn-tactile inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded text-xs font-mono font-bold uppercase bg-paper hover:bg-terracotta hover:text-paper text-ink">
+                    <button onclick="confirmDeleteEvent()" title="Permanently delete this event" class="btn-tactile inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded text-xs font-mono font-bold uppercase bg-paper hover:bg-terracotta hover:text-paper text-ink">
                         <i class="fa-solid fa-trash-can text-[11px]"></i>
-                        <span class="hidden sm:inline">Elimina</span>
+                        <span class="hidden sm:inline">Delete</span>
                     </button>
                 </div>
             </div>
 
-            <!-- BARRA LETTUCEMEET: SELETTORE MODALITÀ (GRUPPO vs I MIEI ORARI) -->
+            <!-- BARRA LETTUCEMEET: SELETTORE MODALITÀ (SEE ALL vs EDIT) -->
             <div class="mt-4 pt-3.5 border-t border-ink/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div class="grid grid-cols-2 sm:inline-flex bg-paperDark p-1 rounded border border-ink gap-1">
                     <button id="tab-group-btn" onclick="switchInteractionMode('group')"
                         class="px-3.5 py-2 rounded text-xs font-mono font-bold uppercase tracking-wider transition flex items-center justify-center gap-2 bg-ink text-paper shadow-tactile-sm">
                         <i class="fa-solid fa-users-viewfinder"></i>
-                        <span>Risultati Gruppo</span>
+                        <span>See All</span>
                     </button>
                     <button id="tab-edit-btn" onclick="switchInteractionMode('edit')"
                         class="px-3.5 py-2 rounded text-xs font-mono font-bold uppercase tracking-wider transition flex items-center justify-center gap-2 text-ink hover:bg-paper">
                         <i class="fa-solid fa-hand-pointer"></i>
-                        <span id="tab-edit-label">I Miei Orari</span>
+                        <span id="tab-edit-label">Edit</span>
                     </button>
                 </div>
 
-                <!-- Prompt rapido inserimento nome quando si clicca "I Miei Orari" o dalla barra -->
+                <!-- Prompt rapido inserimento nome -->
                 <div class="flex items-center gap-2 flex-1 sm:max-w-md justify-end">
                     <form onsubmit="handleAddOrSelectParticipant(event)" class="flex w-full gap-1.5">
-                        <input type="text" id="participant-name-input" placeholder="Il tuo Nome + Team (es. Sara PM)..." maxlength="35" required
+                        <input type="text" id="participant-name-input" placeholder="Your Name + Team (e.g. Sara PM)..." maxlength="35" required
                             class="flex-1 min-w-0 px-3 py-1.5 text-xs font-mono bg-paper border border-ink rounded focus:outline-none focus:ring-2 focus:ring-cobalt">
                         <button type="submit" class="btn-tactile px-3 py-1.5 rounded bg-cobalt text-paper text-xs font-mono font-bold uppercase shrink-0">
-                            Segna Orari
+                            Join / Edit
                         </button>
                     </form>
                 </div>
             </div>
 
-            <!-- Banner Utente Attivo in Modifica (visibile quando si segnano i propri orari) -->
+            <!-- Banner Utente Attivo in Modifica -->
             <div id="active-user-banner" class="hidden mt-3 p-2.5 sm:px-3.5 rounded bg-cobalt/10 border border-cobalt flex flex-wrap items-center justify-between gap-2">
                 <div class="flex items-center gap-2.5 min-w-0">
                     <div class="w-6 h-6 rounded bg-cobalt text-paper border border-ink flex items-center justify-center font-mono text-xs shrink-0">
                         <i class="fa-solid fa-pen"></i>
                     </div>
                     <div class="text-xs">
-                        <span class="font-mono text-[10px] uppercase tracking-wider text-cobalt font-bold mr-1.5">STAI MODIFICANDO:</span>
-                        <strong id="active-user-name" class="text-ink font-bold">Nome</strong>
-                        <span class="hidden sm:inline text-inkMuted font-mono text-[11px] ml-2">&mdash; Trascina sulle celle per segnare quando ci sei</span>
+                        <span class="font-mono text-[10px] uppercase tracking-wider text-cobalt font-bold mr-1.5">EDITING AS:</span>
+                        <strong id="active-user-name" class="text-ink font-bold">Name</strong>
+                        <span class="hidden sm:inline text-inkMuted font-mono text-[11px] ml-2">&mdash; Drag across cells to mark your availability</span>
                     </div>
                 </div>
                 <div class="flex items-center gap-1.5 shrink-0">
                     <button onclick="clearMyAvailability()" class="px-2 py-1 text-[10px] font-mono font-bold uppercase bg-paper border border-ink rounded hover:bg-terracotta hover:text-paper transition">
-                        <i class="fa-solid fa-eraser mr-1"></i>Azzera
+                        <i class="fa-solid fa-eraser mr-1"></i>Clear
                     </button>
                     <button onclick="switchInteractionMode('group')" class="px-2.5 py-1 text-[10px] font-mono font-bold uppercase bg-cobalt text-paper border border-ink rounded hover:bg-ink transition">
-                        <i class="fa-solid fa-check mr-1"></i>Fatto
+                        <i class="fa-solid fa-check mr-1"></i>Done
                     </button>
                 </div>
             </div>
@@ -378,27 +393,34 @@
             <section class="lg:col-span-8 lg:order-2 flex flex-col">
                 <div class="bg-paperCard border border-ink shadow-tactile rounded-md flex-1 flex flex-col overflow-hidden">
                     
-                    <!-- Controlli Matrice + Paginatore Mobile Giorni (Stile LettuceMeet) -->
-                    <div class="p-3 sm:px-4 border-b border-ink bg-paperDark flex flex-wrap items-center justify-between gap-2">
-                        <div class="flex items-center gap-2">
+                    <!-- Controlli Matrice + Paginatore Mobile Giorni -->
+                    <div class="p-3 sm:px-4 border-b border-ink bg-paperDark flex flex-wrap items-center justify-between gap-2 scroll-safe-zone">
+                        <div class="flex items-center justify-between w-full sm:w-auto gap-2">
                             <span id="mode-indicator-pill" class="px-2 py-0.5 text-[10px] sm:text-[11px] font-mono font-bold uppercase border border-ink bg-amberWarm/30 text-ink">
-                                VISTA GRUPPO: TOCCA UNA CELLA PER I DETTAGLI
+                                SEE ALL: TAP A CELL FOR DETAILS
                             </span>
+
+                            <!-- Switcher Rapido Mobile: See All vs Edit -->
+                            <button id="mobile-touch-lock-toggle" onclick="toggleMobileTouchScrollMode()"
+                                class="sm:hidden btn-tactile px-2.5 py-1 rounded text-[10px] font-mono font-bold uppercase bg-paperCard text-ink flex items-center gap-1.5 shrink-0">
+                                <i class="fa-solid fa-users-viewfinder text-terracotta"></i>
+                                <span>See All</span>
+                            </button>
                         </div>
 
                         <!-- Controlli Paginazione Giorni su Schermi Piccoli (<640px) -->
-                        <div class="flex sm:hidden items-center gap-1.5 w-full justify-between pt-1 border-t border-ink/15">
+                        <div class="flex sm:hidden items-center gap-1.5 w-full justify-between pt-1.5 border-t border-ink/15">
                             <button onclick="shiftMobileDays(-1)" id="mobile-prev-days" class="btn-tactile px-2.5 py-1 rounded bg-paper text-ink font-mono text-[11px] font-bold uppercase disabled:opacity-40">
-                                <i class="fa-solid fa-chevron-left mr-1"></i>Prec
+                                <i class="fa-solid fa-chevron-left mr-1"></i>Prev
                             </button>
                             <div class="flex items-center gap-1.5">
-                                <span id="mobile-days-range-label" class="font-mono text-[11px] font-bold uppercase text-ink">LUN &ndash; GIO</span>
+                                <span id="mobile-days-range-label" class="font-mono text-[11px] font-bold uppercase text-ink">MON &ndash; THU</span>
                                 <button onclick="toggleMobileAllDaysView()" id="mobile-toggle-7d-btn" class="px-1.5 py-0.5 font-mono text-[10px] uppercase border border-ink bg-paperCard text-inkMuted">
-                                    7G
+                                    7D
                                 </button>
                             </div>
                             <button onclick="shiftMobileDays(1)" id="mobile-next-days" class="btn-tactile px-2.5 py-1 rounded bg-paper text-ink font-mono text-[11px] font-bold uppercase disabled:opacity-40">
-                                Succ<i class="fa-solid fa-chevron-right ml-1"></i>
+                                Next<i class="fa-solid fa-chevron-right ml-1"></i>
                             </button>
                         </div>
 
@@ -406,7 +428,7 @@
                         <div class="hidden sm:flex items-center gap-3 text-[11px] font-mono shrink-0 bg-paper px-2.5 py-1 border border-ink rounded">
                             <div class="flex items-center gap-1.5">
                                 <span class="w-3 h-3 border-2 border-cobalt bg-sage-100 inline-block"></span>
-                                <span class="text-ink font-bold">TU</span>
+                                <span class="text-ink font-bold">YOU</span>
                             </div>
                             <span class="text-ink/30">|</span>
                             <div class="flex items-center gap-1">
@@ -420,24 +442,41 @@
                         </div>
                     </div>
 
-                    <!-- Griglia Settimanale Responsive -->
-                    <div class="overflow-x-auto flex-1 p-2 sm:p-4 bg-paper/60">
-                        <table id="schedule-table" class="w-full border-collapse table-fixed border border-ink bg-paperCard view-mode-grid">
-                            <thead>
-                                <tr class="bg-paperDark border-b border-ink" id="schedule-grid-header-row">
-                                    <!-- Generato dinamicamente in base ai giorni visibili -->
-                                </tr>
-                            </thead>
-                            <tbody id="schedule-grid-body" class="text-xs font-mono">
-                                <!-- Generato dinamicamente dalle 08:00 alle 24:00 -->
-                            </tbody>
-                        </table>
+                    <!-- Banner Guida Touch Mobile -->
+                    <div id="mobile-scroll-hint-bar" class="sm:hidden bg-paper border-b border-ink px-3 py-1.5 flex items-center justify-between text-[10px] font-mono text-inkMuted scroll-safe-zone">
+                        <span id="mobile-gesture-hint-text">
+                            <i class="fa-solid fa-users-viewfinder text-terracotta mr-1"></i><strong>See All:</strong> tap "Edit" to mark your hours
+                        </span>
+                    </div>
+
+                    <!-- Contenitore Griglia + Corsia Laterale di Scorrimento Sicuro (Mobile Scroll Gutter senza testo) -->
+                    <div class="flex-1 flex items-stretch bg-paper/60 p-1.5 sm:p-4 gap-1.5 sm:gap-0">
+                        <div class="overflow-x-auto flex-1">
+                            <table id="schedule-table" class="w-full border-collapse table-fixed border border-ink bg-paperCard view-mode-grid">
+                                <thead class="scroll-safe-zone">
+                                    <tr class="bg-paperDark border-b border-ink" id="schedule-grid-header-row">
+                                        <!-- Dynamically generated based on visible days -->
+                                    </tr>
+                                </thead>
+                                <tbody id="schedule-grid-body" class="text-xs font-mono">
+                                    <!-- Dynamically generated from 08:00 to 24:00 -->
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Corsia Verticale di Scorrimento Sicuro (Mobile Safe Scroll Gutter pulita, senza scritta) -->
+                        <div class="sm:hidden w-6 shrink-0 border border-ink rounded-sm scroll-gutter-pattern scroll-safe-zone flex flex-col items-center justify-between py-3 text-ink select-none"
+                             title="Scroll area">
+                            <i class="fa-solid fa-angles-up text-[10px] opacity-60"></i>
+                            <i class="fa-solid fa-grip-lines-vertical text-xs opacity-40"></i>
+                            <i class="fa-solid fa-angles-down text-[10px] opacity-60"></i>
+                        </div>
                     </div>
 
                     <!-- Footer Tecnico Matrice -->
-                    <div class="px-3 sm:px-4 py-2 bg-paperDark border-t border-ink flex flex-wrap items-center justify-between text-[10px] font-mono text-inkMuted gap-2">
-                        <span>FASCE: 08:00 &mdash; 24:00 (1 ORA)</span>
-                        <span>BORDO BLU = I TUOI ORARI // PUNTO AMBRA = MIGLIOR SLOT</span>
+                    <div class="px-3 sm:px-4 py-2 bg-paperDark border-t border-ink flex flex-wrap items-center justify-between text-[10px] font-mono text-inkMuted gap-2 scroll-safe-zone">
+                        <span>SLOTS: 08:00 &mdash; 24:00 (1 HOUR)</span>
+                        <span>BLUE BORDER = YOUR HOURS // AMBER DOT = TOP SLOT</span>
                     </div>
                 </div>
             </section>
@@ -445,26 +484,26 @@
             <!-- COLONNA LATERALE: PARTECIPANTI & RADAR SOVRAPPOSIZIONI (4 col su Desktop) -->
             <aside class="lg:col-span-4 lg:order-1 space-y-5">
                 
-                <!-- PANNELLO PARTECIPANTI (TOCCA UN NOME PER MODIFICARE) -->
+                <!-- PANNELLO PARTECIPANTI -->
                 <div class="bg-paperCard border border-ink shadow-tactile rounded-md overflow-hidden">
                     <div class="bg-paperDark border-b border-ink px-4 py-2.5 flex items-center justify-between">
                         <div class="flex items-center gap-2">
                             <span class="font-mono text-[10px] font-bold px-1.5 py-0.5 bg-ink text-paper">01</span>
                             <h3 class="font-mono text-xs font-bold uppercase tracking-wider text-ink">
-                                Partecipanti
+                                Participants
                             </h3>
                         </div>
                         <span id="participants-count-badge" class="font-mono text-[10px] font-bold px-2 py-0.5 bg-paper border border-ink text-ink">
-                            0 PRESENTI
+                            0 JOINED
                         </span>
                     </div>
 
                     <div class="p-4">
                         <p class="text-xs text-inkMuted mb-3 leading-relaxed">
-                            Tocca il tuo nome qui sotto per modificare i tuoi orari o aggiungiti dalla barra superiore:
+                            Tap your name below to edit your availability or add yourself from the top bar:
                         </p>
                         <div class="space-y-1.5 max-h-56 overflow-y-auto pr-1" id="participants-list">
-                            <p class="font-mono text-xs text-inkMuted italic text-center py-2">Nessun partecipante registrato.</p>
+                            <p class="font-mono text-xs text-inkMuted italic text-center py-2">No participants registered yet.</p>
                         </div>
                     </div>
                 </div>
@@ -475,7 +514,7 @@
                         <div class="flex items-center gap-2">
                             <span class="font-mono text-[10px] font-bold px-1.5 py-0.5 bg-ink text-paper">02</span>
                             <h3 class="font-mono text-xs font-bold uppercase tracking-wider text-ink">
-                                Migliori Orari & Dettagli
+                                Best Times & Details
                             </h3>
                         </div>
                         <i class="fa-solid fa-compass text-terracotta text-xs"></i>
@@ -484,17 +523,17 @@
                     <div class="p-4">
                         <!-- Migliori slot calcolati -->
                         <div id="best-slots-container" class="mb-4">
-                            <div class="font-mono text-xs text-inkMuted">In attesa di disponibilità...</div>
+                            <div class="font-mono text-xs text-inkMuted">Waiting for availability...</div>
                         </div>
 
                         <!-- Box Ispezione Cella (Desktop & Mobile) -->
                         <div id="slot-inspector" class="p-3 rounded bg-paper border border-ink">
                             <div class="flex items-center justify-between pb-2 mb-2 border-b border-ink/20">
-                                <span id="inspector-title" class="font-mono text-xs font-bold uppercase text-ink">DETTAGLIO FASCIA //</span>
+                                <span id="inspector-title" class="font-mono text-xs font-bold uppercase text-ink">SLOT DETAILS //</span>
                                 <span id="inspector-badge" class="font-mono text-[10px] font-bold px-2 py-0.5 bg-paperDark border border-ink text-ink">-</span>
                             </div>
                             <div id="inspector-available" class="text-xs text-sage-700 font-medium mb-1.5 leading-snug">
-                                <span class="font-mono text-[11px] text-inkMuted">Tocca o passa il mouse su una cella per vedere chi è libero.</span>
+                                <span class="font-mono text-[11px] text-inkMuted">Tap or hover over a cell to see who is free.</span>
                             </div>
                             <div id="inspector-missing" class="text-xs text-inkMuted leading-snug"></div>
                         </div>
@@ -505,17 +544,17 @@
         </div>
     </main>
 
-    <!-- BARRA INFERIORE LIVE SU MOBILE (STILE LETTUCEMEET) PER ISPEZIONARE GLI SLOT -->
+    <!-- BARRA INFERIORE LIVE SU MOBILE PER ISPEZIONARE GLI SLOT -->
     <div id="mobile-bottom-inspector" class="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-paperCard border-t-2 border-ink shadow-tactile-lg px-3.5 py-2.5 hidden">
         <div class="flex items-center justify-between gap-2 mb-1">
             <div class="flex items-center gap-2 min-w-0">
                 <span class="w-2 h-2 rounded-full bg-terracotta border border-ink shrink-0"></span>
-                <span id="mobile-inspector-title" class="font-mono text-xs font-bold uppercase text-ink truncate">SELEZIONA UNA CELLA</span>
+                <span id="mobile-inspector-title" class="font-mono text-xs font-bold uppercase text-ink truncate">SELECT A CELL</span>
             </div>
-            <span id="mobile-inspector-badge" class="font-mono text-[10px] font-bold px-2 py-0.5 bg-sage-100 border border-ink text-ink shrink-0">0/0 LIBERI</span>
+            <span id="mobile-inspector-badge" class="font-mono text-[10px] font-bold px-2 py-0.5 bg-sage-100 border border-ink text-ink shrink-0">0/0 FREE</span>
         </div>
         <div id="mobile-inspector-body" class="text-[11px] font-mono text-inkMuted truncate">
-            Tocca uno slot sulla griglia per leggere i partecipanti presenti.
+            Tap a slot on the grid to see available participants.
         </div>
     </div>
 
@@ -525,7 +564,7 @@
             <div class="bg-paperDark border-b border-ink px-5 py-3 flex items-center justify-between">
                 <h3 class="font-mono text-xs font-bold uppercase tracking-wider text-ink flex items-center gap-2">
                     <span class="w-2.5 h-2.5 bg-terracotta border border-ink inline-block"></span>
-                    NUOVO INCONTRO PRIVATO
+                    NEW PRIVATE MEETING
                 </h3>
                 <button onclick="closeNewEventModal()" class="text-ink hover:text-terracotta p-1">
                     <i class="fa-solid fa-xmark text-base"></i>
@@ -533,26 +572,26 @@
             </div>
             <form onsubmit="handleCreateEvent(event, 'modal')" class="p-5 space-y-4">
                 <div>
-                    <label class="block font-mono text-[11px] font-bold uppercase text-ink mb-1">Titolo dell'incontro *</label>
-                    <input type="text" id="new-event-title" required maxlength="60" placeholder="Es. Allineamento Design & Engineering"
+                    <label class="block font-mono text-[11px] font-bold uppercase text-ink mb-1">Meeting Title *</label>
+                    <input type="text" id="new-event-title" required maxlength="60" placeholder="e.g. Design & Engineering Sync"
                         class="w-full px-3.5 py-2.5 rounded bg-paper border border-ink text-sm focus:outline-none focus:ring-2 focus:ring-terracotta">
                 </div>
                 <div>
-                    <label class="block font-mono text-[11px] font-bold uppercase text-ink mb-1">Note / Obiettivo (opzionale)</label>
-                    <input type="text" id="new-event-desc" maxlength="120" placeholder="Es. Call settimanale di 1h"
+                    <label class="block font-mono text-[11px] font-bold uppercase text-ink mb-1">Notes / Goal (optional)</label>
+                    <input type="text" id="new-event-desc" maxlength="120" placeholder="e.g. Weekly 1h call"
                         class="w-full px-3.5 py-2.5 rounded bg-paper border border-ink text-sm focus:outline-none focus:ring-2 focus:ring-terracotta">
                 </div>
                 <div>
-                    <label class="block font-mono text-[11px] font-bold uppercase text-ink mb-1">Il tuo nome + team (opzionale)</label>
-                    <input type="text" id="new-event-creator" maxlength="35" placeholder="Es. Giulia (Product)"
+                    <label class="block font-mono text-[11px] font-bold uppercase text-ink mb-1">Your name + team (optional)</label>
+                    <input type="text" id="new-event-creator" maxlength="35" placeholder="e.g. Julia (Product)"
                         class="w-full px-3.5 py-2.5 rounded bg-paper border border-ink text-sm font-mono focus:outline-none focus:ring-2 focus:ring-terracotta">
                 </div>
                 <div class="flex items-center justify-end gap-2.5 pt-3 border-t border-ink/20">
                     <button type="button" onclick="closeNewEventModal()" class="btn-tactile px-4 py-2 rounded text-xs font-mono font-bold uppercase bg-paper text-ink">
-                        Annulla
+                        Cancel
                     </button>
                     <button type="submit" class="btn-tactile px-5 py-2 rounded text-xs font-mono font-bold uppercase bg-terracotta text-paper">
-                        Crea e Apri &rarr;
+                        Create & Open &rarr;
                     </button>
                 </div>
             </form>
@@ -565,16 +604,16 @@
             <div class="w-11 h-11 bg-terracotta text-paper border border-ink shadow-tactile-sm flex items-center justify-center text-lg mb-4">
                 <i class="fa-solid fa-triangle-exclamation"></i>
             </div>
-            <h3 class="text-lg font-bold text-ink uppercase mb-1">Eliminare questo evento?</h3>
+            <h3 class="text-lg font-bold text-ink uppercase mb-1">Delete this event?</h3>
             <p class="text-xs font-mono text-inkMuted mb-5 leading-relaxed">
-                Stai per rimuovere definitivamente <strong id="delete-modal-event-name" class="text-ink"></strong> e tutte le disponibilità inserite. Chi possiede il link non potrà più accedervi.
+                You are about to permanently remove <strong id="delete-modal-event-name" class="text-ink"></strong> and all submitted availability. Anyone with the link will no longer be able to access it.
             </p>
             <div class="flex items-center justify-end gap-2.5">
                 <button onclick="closeDeleteEventModal()" class="btn-tactile px-4 py-2 rounded text-xs font-mono font-bold uppercase bg-paper text-ink">
-                    Annulla
+                    Cancel
                 </button>
                 <button onclick="executeDeleteEvent()" class="btn-tactile px-5 py-2 rounded text-xs font-mono font-bold uppercase bg-terracotta text-paper">
-                    Conferma Eliminazione
+                    Confirm Delete
                 </button>
             </div>
         </div>
@@ -606,9 +645,9 @@
             ? JSON.parse(__firebase_config)
             : defaultFirebaseConfig;
 
-        // Giorni (Asse X) e Ore 08:00 - 24:00 (Asse Y)
-        const DAYS = ['Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato', 'Domenica'];
-        const DAYS_SHORT = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
+        // Days (X Axis) and Hours 08:00 - 24:00 (Y Axis)
+        const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+        const DAYS_SHORT = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
         const HOURS = Array.from({ length: 16 }, (_, i) => i + 8); // [8, 9, 10, ..., 23]
 
         // Stato Globale (Accesso strettamente limitato al singolo evento del link)
@@ -620,17 +659,19 @@
         let unsubscribeCurrentEvent = null;
 
         // Stato Interazione Stile LettuceMeet
-        let interactionMode = 'group'; // 'group' (Risultati) oppure 'edit' (I Miei Orari)
+        let interactionMode = 'group'; // 'group' (Risultati/Scorri) oppure 'edit' (Disegna I Miei Orari)
         let activeParticipant = null;
         let inspectedSlotKey = '0_10';
         let isDragging = false;
         let dragTargetValue = true;
         let lastTouchedSlotKey = null;
+        let hasPendingDragChanges = false;
 
         // Paginazione Giorni Mobile (< 640px)
         let isMobileViewport = window.innerWidth < 640;
-        let mobileDayStart = 0; // Indice primo giorno visibile su mobile
-        let mobileDaysPerPage = 4; // Mostra 4 giorni comodi su smartphone (oppure 7 se sbloccato)
+        let selectedDayIndex = 0;
+        let mobileDaysPerPage = window.innerWidth < 640 ? 4 : 7; // Default 4 giorni su telefono o 7G a scelta
+        let swipeHeaderStartX = null;
 
         // Fallback in memoria locale nel caso di preview offline
         let useLocalMemoryFallback = false;
@@ -688,80 +729,17 @@
         }
 
         // ============================================================================
-        // 2. SINCRONIZZAZIONE SINGOLO DOCUMENTO FIRESTORE (NESSUNA LISTA GLOBALE)
+        // 2. GESTIONE VISTE (LANDING vs WORKSPACE) E SINCRONIZZAZIONE SINGOLO EVENTO
         // ============================================================================
-        function getEventDocRef(eventId) {
-            return doc(db, 'artifacts', appId, 'public', 'data', 'schedule_events', eventId);
-        }
-
-        function subscribeToSingleEvent(eventId) {
+        function showLandingView(showNotFoundBanner = false) {
             if (unsubscribeCurrentEvent) {
                 unsubscribeCurrentEvent();
                 unsubscribeCurrentEvent = null;
             }
+            currentEventData = null;
+            activeParticipant = null;
+            interactionMode = 'group';
 
-            if (useLocalMemoryFallback) {
-                const localEvt = localEventsCache[eventId];
-                if (!localEvt) {
-                    showLandingView(true);
-                } else {
-                    currentEventData = localEvt;
-                    showWorkspaceView();
-                }
-                return;
-            }
-
-            if (!currentUser) return;
-
-            const docRef = getEventDocRef(eventId);
-            unsubscribeCurrentEvent = onSnapshot(
-                docRef,
-                (docSnap) => {
-                    if (!docSnap.exists()) {
-                        currentEventData = null;
-                        showLandingView(true);
-                        return;
-                    }
-
-                    currentEventData = docSnap.data();
-
-                    // Se il partecipante attivo è stato rimosso, torna in vista gruppo
-                    if (activeParticipant && (!currentEventData.availabilities || !currentEventData.availabilities[activeParticipant])) {
-                        activeParticipant = null;
-                        interactionMode = 'group';
-                    }
-
-                    showWorkspaceView();
-                },
-                (error) => {
-                    console.error("Errore lettura stanza:", error);
-                    showToast("Errore di sincronizzazione con la stanza", "error");
-                }
-            );
-        }
-
-        async function saveCurrentEventToDatabase() {
-            if (!currentEventId || !currentEventData) return;
-
-            if (useLocalMemoryFallback) {
-                localEventsCache[currentEventId] = currentEventData;
-                renderAll();
-                return;
-            }
-
-            if (!currentUser) return;
-            try {
-                await setDoc(getEventDocRef(currentEventId), currentEventData);
-            } catch (err) {
-                console.error("Errore salvataggio evento:", err);
-                showToast("Impossibile salvare le modifiche", "error");
-            }
-        }
-
-        // ============================================================================
-        // 3. GESTIONE VISTE (LANDING vs WORKSPACE) E AZIONI STANZA
-        // ============================================================================
-        function showLandingView(showNotFoundBanner = false) {
             document.getElementById('landing-view').classList.remove('hidden');
             document.getElementById('workspace-view').classList.add('hidden');
             document.getElementById('header-share-btn').classList.add('hidden');
@@ -785,51 +763,92 @@
             renderAll();
         }
 
-        window.goHomeNewEvent = function(e) {
-            if (e) e.preventDefault();
+        function getEventDocRef(eventId) {
+            return doc(db, 'artifacts', appId, 'public', 'data', 'schedule_events', eventId);
+        }
+
+        function subscribeToSingleEvent(eventId) {
             if (unsubscribeCurrentEvent) {
                 unsubscribeCurrentEvent();
                 unsubscribeCurrentEvent = null;
             }
+
+            if (useLocalMemoryFallback) {
+                const localEvt = localEventsCache[eventId];
+                if (!localEvt) {
+                    currentEventId = null;
+                    updateUrlParam(null);
+                    showLandingView(true);
+                    return;
+                }
+                currentEventData = localEvt;
+                showWorkspaceView();
+                return;
+            }
+
+            if (!currentUser) return;
+
+            const docRef = getEventDocRef(eventId);
+            unsubscribeCurrentEvent = onSnapshot(
+                docRef,
+                (docSnap) => {
+                    if (!docSnap.exists()) {
+                        currentEventId = null;
+                        updateUrlParam(null);
+                        showLandingView(true);
+                        return;
+                    }
+                    currentEventData = docSnap.data();
+                    if (activeParticipant && (!currentEventData.availabilities || !currentEventData.availabilities[activeParticipant])) {
+                        activeParticipant = null;
+                        interactionMode = 'group';
+                    }
+                    showWorkspaceView();
+                },
+                (err) => {
+                    console.error("Error reading private room:", err);
+                    showToast("Unable to load the requested room", "error");
+                }
+            );
+        }
+
+        async function saveCurrentEventToDatabase() {
+            if (!currentEventData || !currentEventData.id) return;
+
+            if (useLocalMemoryFallback) {
+                localEventsCache[currentEventData.id] = currentEventData;
+                return;
+            }
+
+            if (!currentUser) return;
+            try {
+                await setDoc(getEventDocRef(currentEventData.id), currentEventData);
+            } catch (err) {
+                console.error("Error saving event:", err);
+                showToast("Cloud sync error", "error");
+            }
+        }
+
+        // ============================================================================
+        // 3. CREAZIONE, APERTURA TRAMITE CODICE/LINK ED ELIMINAZIONE EVENTO
+        // ============================================================================
+        window.goHomeNewEvent = function(e) {
+            if (e) e.preventDefault();
             currentEventId = null;
-            currentEventData = null;
-            activeParticipant = null;
-            interactionMode = 'group';
             updateUrlParam(null);
             showLandingView(false);
         };
 
-        window.handleOpenExistingCode = function(e) {
-            e.preventDefault();
-            const rawInput = document.getElementById('join-event-code-input').value.trim();
-            if (!rawInput) return;
-
-            let extractedId = rawInput;
-            try {
-                if (rawInput.includes('?')) {
-                    const url = new URL(rawInput, window.location.origin);
-                    const param = url.searchParams.get('event');
-                    if (param) extractedId = param;
-                }
-            } catch (_) {}
-
-            currentEventId = extractedId.trim();
-            activeParticipant = null;
-            interactionMode = 'group';
-            updateUrlParam(currentEventId);
-            subscribeToSingleEvent(currentEventId);
-        };
-
         window.handleCreateEvent = async function(e, source = 'modal') {
             e.preventDefault();
-            const prefix = source === 'landing' ? 'landing-event' : 'new-event';
+            const isLanding = source === 'landing';
 
-            const titleInput = document.getElementById(`${prefix}-title`);
-            const descInput = document.getElementById(`${prefix}-desc`);
-            const creatorInput = document.getElementById(`${prefix}-creator`);
+            const titleInput = document.getElementById(isLanding ? 'landing-event-title' : 'new-event-title');
+            const descInput = document.getElementById(isLanding ? 'landing-event-desc' : 'new-event-desc');
+            const creatorInput = document.getElementById(isLanding ? 'landing-event-creator' : 'new-event-creator');
 
             const title = titleInput.value.trim();
-            const description = descInput.value.trim() || 'Inserisci il tuo nome e traccia gli orari in cui sei disponibile.';
+            const description = descInput.value.trim() || 'Mark your free hours on the grid and share the link with your teams.';
             const creator = creatorInput.value.trim();
 
             if (!title) return;
@@ -850,16 +869,16 @@
 
             currentEventId = newId;
             currentEventData = newEvent;
-            if (creator) {
-                activeParticipant = creator;
-                interactionMode = 'edit';
-            } else {
-                activeParticipant = null;
-                interactionMode = 'group';
+            activeParticipant = creator || null;
+            interactionMode = creator ? 'edit' : 'group';
+
+            if (useLocalMemoryFallback) {
+                localEventsCache[newId] = newEvent;
+            } else if (currentUser) {
+                await setDoc(getEventDocRef(newId), newEvent);
             }
 
             updateUrlParam(newId);
-            await saveCurrentEventToDatabase();
             closeNewEventModal();
 
             titleInput.value = '';
@@ -867,7 +886,31 @@
             creatorInput.value = '';
 
             subscribeToSingleEvent(newId);
-            showToast("Evento creato! Condividi il link con i team.", "success");
+            showToast(`Event created! Copy and share the link.`, "success");
+        };
+
+        window.handleOpenExistingCode = function(e) {
+            e.preventDefault();
+            const input = document.getElementById('join-event-code-input');
+            const raw = input.value.trim();
+            if (!raw) return;
+
+            let extractedId = raw;
+            try {
+                if (raw.includes('event=')) {
+                    const urlObj = new URL(raw.startsWith('http') ? raw : 'https://dummy.local/' + raw);
+                    const param = urlObj.searchParams.get('event');
+                    if (param) extractedId = param.trim();
+                }
+            } catch (_) {
+                const match = raw.match(/event=([a-zA-Z0-9_-]+)/);
+                if (match && match[1]) extractedId = match[1];
+            }
+
+            input.value = '';
+            currentEventId = extractedId;
+            updateUrlParam(extractedId);
+            subscribeToSingleEvent(extractedId);
         };
 
         window.confirmDeleteEvent = function() {
@@ -892,28 +935,22 @@
 
             if (useLocalMemoryFallback) {
                 delete localEventsCache[idToDelete];
-                currentEventId = null;
-                currentEventData = null;
-                activeParticipant = null;
-                updateUrlParam(null);
-                showLandingView(false);
-                showToast("Evento eliminato", "info");
-                return;
+            } else if (currentUser) {
+                try {
+                    await deleteDoc(getEventDocRef(idToDelete));
+                } catch (err) {
+                    console.error("Delete error:", err);
+                    showToast("Unable to delete the event", "error");
+                    return;
+                }
             }
 
-            if (!currentUser) return;
-            try {
-                await deleteDoc(getEventDocRef(idToDelete));
-                currentEventId = null;
-                currentEventData = null;
-                activeParticipant = null;
-                updateUrlParam(null);
-                showLandingView(false);
-                showToast("Evento eliminato definitivamente", "info");
-            } catch (err) {
-                console.error("Errore eliminazione:", err);
-                showToast("Errore durante l'eliminazione", "error");
-            }
+            currentEventId = null;
+            currentEventData = null;
+            activeParticipant = null;
+            updateUrlParam(null);
+            showLandingView(false);
+            showToast("Event permanently deleted", "info");
         };
 
         function updateUrlParam(eventId) {
@@ -925,7 +962,9 @@
                     url.searchParams.delete('event');
                 }
                 window.history.replaceState({}, '', url.toString());
-            } catch (_) {}
+            } catch (_) {
+                // Ignore history restrictions in sandboxed iframes
+            }
         }
 
         window.shareOrCopyEventLink = async function() {
@@ -939,17 +978,16 @@
                 shareUrl = window.location.origin + window.location.pathname + '?event=' + currentEventId;
             }
 
-            // Su smartphone usa il menu di condivisione nativo se disponibile
             if (navigator.share && isMobileViewport) {
                 try {
                     await navigator.share({
-                        title: `Meetami // ${currentEventData?.title || 'Pianificazione Incontro'}`,
-                        text: 'Segna i tuoi orari disponibili su Meetami:',
+                        title: `Meetami // ${currentEventData?.title || 'Meeting'}`,
+                        text: 'Mark your available times on Meetami:',
                         url: shareUrl
                     });
                     return;
                 } catch (_) {
-                    // Se l'utente annulla, prosegue con la copia negli appunti
+                    // Fallback to clipboard copy
                 }
             }
 
@@ -960,39 +998,218 @@
             document.execCommand('copy');
             document.body.removeChild(tempInput);
 
-            showToast("Link privato copiato negli appunti!", "success");
+            showToast("Private link copied to clipboard!", "success");
         };
 
         // ============================================================================
-        // 4. COSTRUZIONE MATRICE ORARIA E PAGINAZIONE MOBILE (STILE LETTUCEMEET)
+        // 4. COSTRUZIONE MATRICE ORARIA E SELETTORE GIORNI MOBILE A PILLOLE
         // ============================================================================
         function getVisibleDayIndices() {
             if (!isMobileViewport || mobileDaysPerPage === 7) {
                 return [0, 1, 2, 3, 4, 5, 6];
             }
+            if (mobileDaysPerPage === 1) {
+                return [selectedDayIndex];
+            }
+            let start = selectedDayIndex;
+            if (start < 0) start = 0;
+            if (start > 7 - mobileDaysPerPage) start = 7 - mobileDaysPerPage;
+
             const indices = [];
             for (let i = 0; i < mobileDaysPerPage; i++) {
-                if (mobileDayStart + i < 7) {
-                    indices.push(mobileDayStart + i);
-                }
+                indices.push(start + i);
             }
             return indices;
         }
 
         window.shiftMobileDays = function(direction) {
-            const step = 3;
-            const nextStart = mobileDayStart + direction * step;
-            mobileDayStart = Math.max(0, Math.min(7 - mobileDaysPerPage, nextStart));
+            const maxStart = Math.max(0, 7 - mobileDaysPerPage);
+            selectedDayIndex = Math.max(0, Math.min(maxStart, selectedDayIndex + direction * 2));
             buildScheduleSkeleton();
-            renderGridAndStats();
+            renderAll();
         };
 
         window.toggleMobileAllDaysView = function() {
             mobileDaysPerPage = mobileDaysPerPage === 7 ? 4 : 7;
-            mobileDayStart = 0;
+            if (selectedDayIndex > 7 - mobileDaysPerPage) {
+                selectedDayIndex = Math.max(0, 7 - mobileDaysPerPage);
+            }
             buildScheduleSkeleton();
-            renderGridAndStats();
+            renderAll();
         };
+
+        window.selectMobileDay = function(dayIdx) {
+            selectedDayIndex = Math.max(0, Math.min(6, dayIdx));
+            buildScheduleSkeleton();
+            renderAll();
+        };
+
+        window.stepMobileActiveDay = function(delta) {
+            selectedDayIndex = (selectedDayIndex + delta + 7) % 7;
+            buildScheduleSkeleton();
+            renderAll();
+        };
+
+        window.setMobileViewSpan = function(span) {
+            mobileDaysPerPage = span;
+            buildScheduleSkeleton();
+            renderAll();
+        };
+
+        window.applyDayPreset = async function(presetType) {
+            if (!activeParticipant) {
+                showToast("Enter or select your name first to use quick presets!", "warning");
+                document.getElementById('participant-name-input').focus();
+                return;
+            }
+            if (!currentEventData) return;
+            interactionMode = 'edit';
+
+            if (!currentEventData.availabilities) currentEventData.availabilities = {};
+            const mySlots = new Set(currentEventData.availabilities[activeParticipant] || []);
+
+            let targetHours = [];
+            if (presetType === 'morning') {
+                targetHours = [8, 9, 10, 11, 12];
+            } else if (presetType === 'afternoon') {
+                targetHours = [14, 15, 16, 17, 18];
+            } else if (presetType === 'evening') {
+                targetHours = [19, 20, 21, 22, 23];
+            } else if (presetType === 'all') {
+                targetHours = [...HOURS];
+            }
+
+            if (presetType === 'clear') {
+                HOURS.forEach(h => mySlots.delete(`${selectedDayIndex}_${h}`));
+                showToast(`${DAYS[selectedDayIndex]} cleared`, "info");
+            } else {
+                const targetKeys = targetHours.map(h => `${selectedDayIndex}_${h}`);
+                const allAlreadySelected = targetKeys.every(k => mySlots.has(k));
+                if (allAlreadySelected) {
+                    targetKeys.forEach(k => mySlots.delete(k));
+                } else {
+                    targetKeys.forEach(k => mySlots.add(k));
+                }
+            }
+
+            currentEventData.availabilities[activeParticipant] = Array.from(mySlots);
+            renderAll();
+            await saveCurrentEventToDatabase();
+        };
+
+        function renderMobileDayPills() {
+            const rangeLabel = document.getElementById('mobile-days-range-label');
+            const toggle7dBtn = document.getElementById('mobile-toggle-7d-btn');
+            const prevBtn = document.getElementById('mobile-prev-days');
+            const nextBtn = document.getElementById('mobile-next-days');
+
+            const visibleDays = getVisibleDayIndices();
+            if (rangeLabel && visibleDays.length > 0) {
+                const firstDay = DAYS_SHORT[visibleDays[0]].toUpperCase();
+                const lastDay = DAYS_SHORT[visibleDays[visibleDays.length - 1]].toUpperCase();
+                rangeLabel.textContent = firstDay === lastDay ? firstDay : `${firstDay} – ${lastDay}`;
+            }
+            if (toggle7dBtn) {
+                toggle7dBtn.className = mobileDaysPerPage === 7
+                    ? 'px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase border border-ink bg-ink text-paper'
+                    : 'px-1.5 py-0.5 font-mono text-[10px] uppercase border border-ink bg-paperCard text-inkMuted';
+            }
+            if (prevBtn) {
+                prevBtn.disabled = mobileDaysPerPage === 7 || visibleDays[0] <= 0;
+            }
+            if (nextBtn) {
+                nextBtn.disabled = mobileDaysPerPage === 7 || visibleDays[visibleDays.length - 1] >= 6;
+            }
+
+            const pillsContainer = document.getElementById('mobile-day-pills');
+            const activeDayTitle = document.getElementById('mobile-active-day-title');
+            const presetDayLabel = document.getElementById('preset-target-day-name');
+            const presetsBar = document.getElementById('day-quick-presets-bar');
+
+            if (presetDayLabel) {
+                presetDayLabel.textContent = DAYS[selectedDayIndex];
+            }
+            if (presetsBar) {
+                if (interactionMode === 'edit' && activeParticipant) {
+                    presetsBar.classList.remove('hidden');
+                } else {
+                    presetsBar.classList.add('hidden');
+                }
+            }
+
+            // Aggiorna bottoni densità (1G / 3G / 7G)
+            [1, 3, 7].forEach(span => {
+                const btn = document.getElementById(`span-btn-${span}`);
+                if (!btn) return;
+                if (mobileDaysPerPage === span) {
+                    btn.className = 'px-2.5 py-1 text-[10px] font-mono font-bold uppercase rounded-sm transition bg-ink text-paper';
+                } else {
+                    btn.className = 'px-2.5 py-1 text-[10px] font-mono font-bold uppercase rounded-sm transition text-inkMuted hover:text-ink';
+                }
+            });
+
+            if (activeDayTitle) {
+                activeDayTitle.textContent = DAYS[selectedDayIndex].toUpperCase();
+            }
+
+            if (!pillsContainer) return;
+
+            const availabilities = currentEventData?.availabilities || {};
+            const participants = Object.keys(availabilities);
+            const mySlots = activeParticipant ? (availabilities[activeParticipant] || []) : [];
+
+            pillsContainer.innerHTML = '';
+
+            for (let d = 0; d < 7; d++) {
+                const isFocused = d === selectedDayIndex;
+                const isVisibleInGrid = visibleDays.includes(d);
+
+                // Conta quante ore ha selezionato l'utente attivo in questo giorno
+                let myDayHours = 0;
+                // Conta il massimo di partecipanti presenti in questo giorno
+                let maxTeamInDay = 0;
+
+                HOURS.forEach(h => {
+                    const key = `${d}_${h}`;
+                    if (mySlots.includes(key)) myDayHours++;
+                    let c = 0;
+                    participants.forEach(p => {
+                        if ((availabilities[p] || []).includes(key)) c++;
+                    });
+                    if (c > maxTeamInDay) maxTeamInDay = c;
+                });
+
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.onclick = () => window.selectMobileDay(d);
+
+                let pillStyle = 'bg-paper text-ink border-ink/40 opacity-75';
+                if (isFocused) {
+                    pillStyle = 'bg-terracotta text-paper border-ink shadow-tactile-sm font-bold opacity-100 -translate-y-0.5';
+                } else if (isVisibleInGrid) {
+                    pillStyle = 'bg-paperCard text-ink border-ink font-bold opacity-100';
+                }
+
+                // Badge inferiore sulla pillola: mostra le proprie ore (se attivo) oppure un pallino verde se il team ha disponibilità
+                let badgeHtml = `<span class="text-[9px] font-mono opacity-40">&middot;</span>`;
+                if (activeParticipant && myDayHours > 0) {
+                    badgeHtml = `<span class="px-1 rounded-sm text-[9px] font-mono font-bold ${
+                        isFocused ? 'bg-paper text-ink' : 'bg-cobalt text-paper'
+                    }">${myDayHours}h</span>`;
+                } else if (maxTeamInDay > 0) {
+                    badgeHtml = `<span class="inline-block w-2 h-2 rounded-full border border-ink ${
+                        isFocused ? 'bg-amberWarm' : 'bg-sage-500'
+                    }"></span>`;
+                }
+
+                btn.className = `py-1.5 px-0.5 rounded border text-center transition flex flex-col items-center justify-between gap-1 ${pillStyle}`;
+                btn.innerHTML = `
+                    <span class="font-mono text-[10px] uppercase tracking-tighter leading-none">${DAYS_SHORT[d]}</span>
+                    <div class="h-3.5 flex items-center justify-center">${badgeHtml}</div>
+                `;
+                pillsContainer.appendChild(btn);
+            }
+        }
 
         function buildScheduleSkeleton() {
             const headerRow = document.getElementById('schedule-grid-header-row');
@@ -1001,41 +1218,28 @@
 
             const visibleDays = getVisibleDayIndices();
 
-            // Aggiorna controlli paginatore mobile
-            const prevBtn = document.getElementById('mobile-prev-days');
-            const nextBtn = document.getElementById('mobile-next-days');
-            const rangeLabel = document.getElementById('mobile-days-range-label');
-            const toggle7dBtn = document.getElementById('mobile-toggle-7d-btn');
-
-            if (prevBtn && nextBtn && rangeLabel && toggle7dBtn) {
-                prevBtn.disabled = mobileDaysPerPage === 7 || mobileDayStart === 0;
-                nextBtn.disabled = mobileDaysPerPage === 7 || (mobileDayStart + mobileDaysPerPage >= 7);
-                const firstDay = DAYS_SHORT[visibleDays[0]].toUpperCase();
-                const lastDay = DAYS_SHORT[visibleDays[visibleDays.length - 1]].toUpperCase();
-                rangeLabel.textContent = `${firstDay} — ${lastDay}`;
-                toggle7dBtn.textContent = mobileDaysPerPage === 7 ? '4G' : '7G';
-                toggle7dBtn.className = `px-2 py-0.5 font-mono text-[10px] font-bold uppercase border border-ink rounded ${
-                    mobileDaysPerPage === 7 ? 'bg-ink text-paper' : 'bg-paperCard text-ink'
-                }`;
-            }
-
             // Costruisci Header Colonne Giorni
             headerRow.innerHTML = '';
             const thTime = document.createElement('th');
-            thTime.className = 'w-16 sm:w-24 py-2 px-1.5 sm:px-2.5 text-left font-mono text-[10px] font-bold uppercase tracking-wider text-inkMuted border-r border-ink sticky left-0 bg-paperDark z-10';
-            thTime.textContent = 'ORA';
+            thTime.className = 'w-16 sm:w-24 py-2 px-1.5 sm:px-2.5 text-left font-mono text-[10px] font-bold uppercase tracking-wider text-ink border-r border-ink sticky left-0 bg-paperDark z-10 scroll-safe-zone';
+            thTime.innerHTML = `
+                <div class="flex items-center justify-between">
+                    <span>TIME</span>
+                    <span class="sm:hidden text-[9px] px-1 bg-paper border border-ink/40" title="Scroll zone">⇅</span>
+                </div>
+            `;
             headerRow.appendChild(thTime);
 
             visibleDays.forEach(dayIdx => {
                 const isWeekend = dayIdx >= 5;
                 const th = document.createElement('th');
-                th.className = `py-2 px-1 text-center border-r border-ink last:border-r-0 ${isWeekend ? 'bg-amberWarm/10' : ''}`;
+                th.className = `py-2 px-1 text-center border-r border-ink last:border-r-0 scroll-safe-zone ${isWeekend ? 'bg-amberWarm/10' : ''}`;
                 th.innerHTML = `
-                    <div class="font-mono text-[9px] ${isWeekend ? 'text-terracotta' : 'text-inkMuted'}">G.0${dayIdx + 1}</div>
+                    <div class="font-mono text-[9px] ${isWeekend ? 'text-terracotta' : 'text-inkMuted'}">D.0${dayIdx + 1}</div>
                     <div class="font-bold text-xs uppercase text-ink">${DAYS_SHORT[dayIdx]}</div>
-                    <button onclick="toggleWholeDay(${dayIdx})" title="Seleziona/Deseleziona tutto ${DAYS[dayIdx]}"
+                    <button onclick="toggleWholeDay(${dayIdx})" title="Select/Deselect all ${DAYS[dayIdx]}"
                         class="mt-1 px-1.5 py-0.2 font-mono text-[9px] uppercase border border-ink/40 bg-paper hover:bg-ink hover:text-paper transition rounded-sm">
-                        Tutti
+                        All
                     </button>
                 `;
                 headerRow.appendChild(th);
@@ -1051,10 +1255,16 @@
                 const tr = document.createElement('tr');
                 tr.className = 'border-b border-ink/30 last:border-b-0';
 
-                // Colonna Y: Fascia Oraria
+                // Colonna Y: Fascia Oraria (Zona sicura per scorrere la pagina col pollice)
                 const tdHour = document.createElement('td');
-                tdHour.className = 'py-1.5 px-1.5 sm:px-2.5 font-mono text-[10px] sm:text-[11px] font-bold text-ink whitespace-nowrap border-r border-ink bg-paperDark/90 sticky left-0 z-10';
-                tdHour.innerHTML = `<span class="sm:hidden">${shortTime}</span><span class="hidden sm:inline">${fullTime}</span>`;
+                tdHour.className = 'hour-axis-cell scroll-safe-zone py-1.5 px-1.5 sm:px-2.5 font-mono text-[10px] sm:text-[11px] font-bold text-ink whitespace-nowrap border-r border-ink bg-paperDark/95 sticky left-0 z-10 select-none';
+                tdHour.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <span class="sm:hidden">${shortTime}</span>
+                        <span class="hidden sm:inline">${fullTime}</span>
+                        <i class="fa-solid fa-grip-lines-vertical sm:hidden text-[9px] text-inkMuted/60"></i>
+                    </div>
+                `;
                 tr.appendChild(tdHour);
 
                 // Colonne X: Giorni visibili
@@ -1065,7 +1275,7 @@
                     td.dataset.slot = slotKey;
                     td.dataset.day = dayIdx;
                     td.dataset.hour = hour;
-                    td.className = 'slot-cell p-1 border-r border-ink/30 last:border-r-0 text-center cursor-pointer select-none h-10 sm:h-9 relative';
+                    td.className = 'slot-cell p-1 border-r border-ink/30 last:border-r-0 text-center cursor-pointer select-none h-11 sm:h-9 relative';
 
                     // Mouse Desktop
                     td.addEventListener('mousedown', (e) => {
@@ -1075,18 +1285,19 @@
                     });
                     td.addEventListener('mouseenter', () => {
                         inspectSlot(slotKey);
-                        if (isDragging && interactionMode === 'edit') {
-                            applySlotChange(slotKey, dragTargetValue);
+                        if (isDragging && interactionMode === 'edit' && activeParticipant) {
+                            applySlotChange(slotKey, dragTargetValue, false);
                         }
                     });
 
-                    // Touch Mobile (LettuceMeet drag-to-paint in modalità Edit, tap-to-inspect in modalità Gruppo)
+                    // Touch Mobile: se siamo in Edit Mode con partecipante attivo, trascinare riempie/svuota le celle
                     td.addEventListener('touchstart', (e) => {
-                        if (interactionMode === 'edit') {
+                        if (interactionMode === 'edit' && activeParticipant) {
                             if (e.cancelable) e.preventDefault();
                             lastTouchedSlotKey = slotKey;
                             handlePointerDownOnSlot(slotKey);
                         } else {
+                            // In Vista Gruppo non blocchiamo il touchstart: la pagina scorre normalmente e il tap ispeziona la cella
                             inspectSlot(slotKey);
                         }
                     }, { passive: false });
@@ -1099,15 +1310,22 @@
         }
 
         function setupGlobalPointerAndTouchListeners() {
-            window.addEventListener('mouseup', () => {
-                if (isDragging) {
-                    isDragging = false;
-                    lastTouchedSlotKey = null;
+            const finishDragSession = async () => {
+                if (!isDragging) return;
+                isDragging = false;
+                lastTouchedSlotKey = null;
+                document.querySelectorAll('.slot-painting-feedback').forEach(el => el.classList.remove('slot-painting-feedback'));
+
+                if (hasPendingDragChanges) {
+                    hasPendingDragChanges = false;
+                    await saveCurrentEventToDatabase();
                 }
-            });
+            };
+
+            window.addEventListener('mouseup', finishDragSession);
 
             window.addEventListener('touchmove', (e) => {
-                if (!isDragging || interactionMode !== 'edit') return;
+                if (!isDragging || interactionMode !== 'edit' || !activeParticipant) return;
                 if (e.cancelable) e.preventDefault();
 
                 const touch = e.touches[0];
@@ -1117,30 +1335,44 @@
                 const cell = targetEl ? targetEl.closest('.slot-cell') : null;
                 if (cell && cell.dataset.slot && cell.dataset.slot !== lastTouchedSlotKey) {
                     lastTouchedSlotKey = cell.dataset.slot;
+                    cell.classList.add('slot-painting-feedback');
                     inspectSlot(cell.dataset.slot);
-                    applySlotChange(cell.dataset.slot, dragTargetValue);
+                    applySlotChange(cell.dataset.slot, dragTargetValue, false);
                 }
             }, { passive: false });
 
-            window.addEventListener('touchend', () => {
-                if (isDragging) {
-                    isDragging = false;
-                    lastTouchedSlotKey = null;
-                }
-            });
+            window.addEventListener('touchend', finishDragSession);
+            window.addEventListener('touchcancel', finishDragSession);
         }
 
         // ============================================================================
-        // 5. MODALITÀ INTERAZIONE (GRUPPO vs I MIEI ORARI) E PARTECIPANTI
+        // 5. MODALITÀ INTERAZIONE (SEE ALL vs EDIT) E PARTECIPANTI
         // ============================================================================
         window.switchInteractionMode = function(mode) {
             if (mode === 'edit' && !activeParticipant) {
                 const input = document.getElementById('participant-name-input');
-                showToast("Inserisci il tuo nome qui sopra per segnare i tuoi orari!", "warning");
+                showToast("Enter your name above to edit your hours!", "warning");
                 input.focus();
                 return;
             }
             interactionMode = mode;
+            renderAll();
+        };
+
+        window.toggleMobileTouchScrollMode = function() {
+            if (interactionMode === 'edit' && activeParticipant) {
+                interactionMode = 'group';
+                showToast("See All mode enabled", "info");
+            } else {
+                if (!activeParticipant) {
+                    const input = document.getElementById('participant-name-input');
+                    showToast("Enter your name first to edit your hours!", "warning");
+                    input.focus();
+                    return;
+                }
+                interactionMode = 'edit';
+                showToast(`Edit mode active for ${activeParticipant}`, "info");
+            }
             renderAll();
         };
 
@@ -1159,13 +1391,13 @@
             if (existingName) {
                 activeParticipant = existingName;
                 interactionMode = 'edit';
-                showToast(`Bentornato "${existingName}"! Trascina sulla griglia per segnare gli orari.`, "info");
+                showToast(`Welcome back "${existingName}"! Drag across the grid to edit your hours.`, "info");
             } else {
                 currentEventData.availabilities[rawName] = [];
                 activeParticipant = rawName;
                 interactionMode = 'edit';
                 await saveCurrentEventToDatabase();
-                showToast(`"${rawName}" aggiunto! Segna i tuoi orari sulla griglia.`, "success");
+                showToast(`"${rawName}" joined! Drag across the grid to mark your hours.`, "success");
             }
 
             input.value = '';
@@ -1189,7 +1421,7 @@
             }
             await saveCurrentEventToDatabase();
             renderAll();
-            showToast(`Partecipante "${name}" rimosso`, "info");
+            showToast(`Participant "${name}" removed`, "info");
         };
 
         window.clearMyAvailability = async function() {
@@ -1197,7 +1429,7 @@
             currentEventData.availabilities[activeParticipant] = [];
             await saveCurrentEventToDatabase();
             renderAll();
-            showToast(`Orari di ${activeParticipant} azzerati`, "info");
+            showToast(`${activeParticipant}'s hours cleared`, "info");
         };
 
         function handlePointerDownOnSlot(slotKey) {
@@ -1208,7 +1440,7 @@
             }
 
             if (!activeParticipant) {
-                showToast("Inserisci prima il tuo nome per segnare le disponibilità!", "warning");
+                showToast("Enter your name first to mark your availability!", "warning");
                 document.getElementById('participant-name-input').focus();
                 return;
             }
@@ -1218,10 +1450,14 @@
 
             isDragging = true;
             dragTargetValue = !hasSlot;
-            applySlotChange(slotKey, dragTargetValue);
+
+            const activeCell = document.getElementById(`cell-${slotKey}`);
+            if (activeCell) activeCell.classList.add('slot-painting-feedback');
+
+            applySlotChange(slotKey, dragTargetValue, false);
         }
 
-        async function applySlotChange(slotKey, shouldBeAvailable) {
+        async function applySlotChange(slotKey, shouldBeAvailable, saveImmediately = true) {
             if (!activeParticipant || !currentEventData) return;
             if (!currentEventData.availabilities) currentEventData.availabilities = {};
             if (!currentEventData.availabilities[activeParticipant]) {
@@ -1241,20 +1477,25 @@
             }
 
             if (changed) {
+                hasPendingDragChanges = true;
                 renderParticipantsSection();
                 renderGridAndStats();
                 inspectSlot(slotKey);
-                await saveCurrentEventToDatabase();
+                if (saveImmediately) {
+                    hasPendingDragChanges = false;
+                    await saveCurrentEventToDatabase();
+                }
             }
         }
 
         window.toggleWholeDay = async function(dayIdx) {
             if (!activeParticipant) {
-                showToast("Inserisci o seleziona prima il tuo nome per segnare l'intera giornata!", "warning");
+                showToast("Enter or select your name first to toggle the entire day!", "warning");
                 document.getElementById('participant-name-input').focus();
                 return;
             }
             if (!currentEventData) return;
+            selectedDayIndex = dayIdx;
             interactionMode = 'edit';
 
             if (!currentEventData.availabilities) currentEventData.availabilities = {};
@@ -1269,6 +1510,7 @@
             }
 
             currentEventData.availabilities[activeParticipant] = Array.from(mySlots);
+            buildScheduleSkeleton();
             renderAll();
             await saveCurrentEventToDatabase();
         };
@@ -1284,24 +1526,42 @@
             document.getElementById('current-event-desc').textContent = currentEventData.description || '';
             document.getElementById('current-event-id-badge').textContent = `ID: ${currentEventData.id}`;
 
-            // Stato Tabs Modalità (LettuceMeet style)
+            // Stato Tabs Modalità (See All vs Edit)
             const tabGroupBtn = document.getElementById('tab-group-btn');
             const tabEditBtn = document.getElementById('tab-edit-btn');
             const tabEditLabel = document.getElementById('tab-edit-label');
             const tableEl = document.getElementById('schedule-table');
+            const mobileTouchToggle = document.getElementById('mobile-touch-lock-toggle');
+            const mobileHintText = document.getElementById('mobile-gesture-hint-text');
 
-            tabEditLabel.textContent = activeParticipant ? `I Miei Orari (${activeParticipant})` : 'I Miei Orari';
+            tabEditLabel.textContent = activeParticipant ? `Edit (${activeParticipant})` : 'Edit';
 
             if (interactionMode === 'edit' && activeParticipant) {
                 tabEditBtn.className = 'px-3.5 py-2 rounded text-xs font-mono font-bold uppercase tracking-wider transition flex items-center justify-center gap-2 bg-cobalt text-paper shadow-tactile-sm border border-ink';
                 tabGroupBtn.className = 'px-3.5 py-2 rounded text-xs font-mono font-bold uppercase tracking-wider transition flex items-center justify-center gap-2 text-ink hover:bg-paper';
                 tableEl.classList.remove('view-mode-grid');
                 tableEl.classList.add('edit-mode-grid');
+
+                if (mobileTouchToggle) {
+                    mobileTouchToggle.className = 'sm:hidden btn-tactile px-2.5 py-1 rounded text-[10px] font-mono font-bold uppercase bg-cobalt text-paper flex items-center gap-1.5 shrink-0';
+                    mobileTouchToggle.innerHTML = `<i class="fa-solid fa-pen-nib"></i><span>Edit</span>`;
+                }
+                if (mobileHintText) {
+                    mobileHintText.innerHTML = `<i class="fa-solid fa-hand-pointer text-cobalt mr-1"></i><strong>Edit:</strong> drag across cells to mark availability`;
+                }
             } else {
                 tabGroupBtn.className = 'px-3.5 py-2 rounded text-xs font-mono font-bold uppercase tracking-wider transition flex items-center justify-center gap-2 bg-ink text-paper shadow-tactile-sm border border-ink';
                 tabEditBtn.className = 'px-3.5 py-2 rounded text-xs font-mono font-bold uppercase tracking-wider transition flex items-center justify-center gap-2 text-ink hover:bg-paper';
                 tableEl.classList.remove('edit-mode-grid');
                 tableEl.classList.add('view-mode-grid');
+
+                if (mobileTouchToggle) {
+                    mobileTouchToggle.className = 'sm:hidden btn-tactile px-2.5 py-1 rounded text-[10px] font-mono font-bold uppercase bg-paperCard text-ink flex items-center gap-1.5 shrink-0';
+                    mobileTouchToggle.innerHTML = `<i class="fa-solid fa-users-viewfinder text-terracotta"></i><span>See All</span>`;
+                }
+                if (mobileHintText) {
+                    mobileHintText.innerHTML = `<i class="fa-solid fa-users-viewfinder text-terracotta mr-1"></i><strong>See All:</strong> tap "Edit" to mark your hours`;
+                }
             }
 
             renderParticipantsSection();
@@ -1319,21 +1579,21 @@
 
             const availabilities = currentEventData?.availabilities || {};
             const names = Object.keys(availabilities);
-            badgeEl.textContent = `${names.length} PRESENT${names.length === 1 ? 'E' : 'I'}`;
+            badgeEl.textContent = `${names.length} JOINED`;
 
             if (interactionMode === 'edit' && activeParticipant) {
                 bannerEl.classList.remove('hidden');
                 document.getElementById('active-user-name').textContent = activeParticipant;
-                modePill.textContent = `MODIFICA ATTIVA // TRASCINA SULLE CELLE PER ${activeParticipant.toUpperCase()}`;
+                modePill.textContent = `EDIT // DRAG CELLS AS ${activeParticipant.toUpperCase()}`;
                 modePill.className = 'px-2.5 py-0.5 text-[10px] sm:text-[11px] font-mono font-bold uppercase border border-ink bg-cobalt text-paper';
             } else {
                 bannerEl.classList.add('hidden');
-                modePill.textContent = 'VISTA GRUPPO // TOCCA UNA CELLA PER VEDERE CHI C\'È';
+                modePill.textContent = 'SEE ALL // TAP A CELL TO INSPECT';
                 modePill.className = 'px-2.5 py-0.5 text-[10px] sm:text-[11px] font-mono font-bold uppercase border border-ink bg-amberWarm/30 text-ink';
             }
 
             if (names.length === 0) {
-                listEl.innerHTML = `<p class="font-mono text-xs text-inkMuted italic text-center py-2">Nessun partecipante. Scrivi il tuo nome in alto per iniziare.</p>`;
+                listEl.innerHTML = `<p class="font-mono text-xs text-inkMuted italic text-center py-2">No participants yet. Enter your name above to start.</p>`;
                 return;
             }
 
@@ -1359,7 +1619,7 @@
                         <span class="px-1.5 py-0.5 text-[10px] border ${
                             isMe ? 'bg-ink text-paper border-paper/30' : 'bg-paperCard text-ink border-ink/30'
                         }">${slotCount}h</span>
-                        <button onclick="removeParticipant('${escapeJsString(name)}', event)" title="Rimuovi partecipante"
+                        <button onclick="removeParticipant('${escapeJsString(name)}', event)" title="Remove participant"
                             class="p-1 rounded hover:bg-terracotta hover:text-paper transition ${
                                 isMe ? 'text-paper/80' : 'text-inkMuted'
                             }">
@@ -1421,8 +1681,7 @@
                             bgClass = 'bg-sage-700 text-paper font-bold';
                         }
                     }
-
-                    cell.className = `slot-cell p-1 border-r border-ink/30 last:border-r-0 text-center cursor-pointer select-none h-10 sm:h-9 relative ${bgClass} ${
+                    cell.className = `slot-cell p-1 border-r border-ink/30 last:border-r-0 text-center cursor-pointer select-none h-11 sm:h-9 relative ${bgClass} ${
                         isMine ? 'my-slot-active' : ''
                     } ${isBest && !isMine ? 'best-slot-ring' : ''} ${isInspected ? 'slot-inspected' : ''}`;
 
@@ -1432,21 +1691,22 @@
                         cell.innerHTML = `
                             <div class="flex items-center justify-center gap-1 text-[11px] font-mono leading-none">
                                 <span>${count}/${totalParticipants}</span>
-                                ${isMine ? '<span class="w-2 h-2 rounded-full bg-cobalt border border-paper inline-block" title="Tuo orario"></span>' : ''}
-                                ${isBest ? '<span class="w-2 h-2 rounded-full bg-amberWarm border border-ink inline-block" title="Miglior slot"></span>' : ''}
+                                ${isMine ? '<span class="w-2 h-2 rounded-full bg-cobalt border border-paper inline-block" title="Your slot"></span>' : ''}
+                                ${isBest ? '<span class="w-2 h-2 rounded-full bg-amberWarm border border-ink inline-block" title="Best slot"></span>' : ''}
                             </div>
                         `;
                     }
                 }
             }
 
+            renderMobileDayPills();
             renderBestSlotsSummary(slotCounts, maxOverlap, totalParticipants);
         }
 
         function renderBestSlotsSummary(slotCounts, maxOverlap, totalParticipants) {
             const container = document.getElementById('best-slots-container');
             if (totalParticipants === 0 || maxOverlap === 0) {
-                container.innerHTML = `<div class="font-mono text-xs text-inkMuted">Nessuna sovrapposizione ancora registrata.</div>`;
+                container.innerHTML = `<div class="font-mono text-xs text-inkMuted">No overlap recorded yet.</div>`;
                 return;
             }
 
@@ -1455,8 +1715,8 @@
 
             let html = `
                 <div class="font-mono text-[11px] text-ink mb-2.5 flex items-center justify-between">
-                    <span>MASSIMA PRESENZA:</span>
-                    <strong class="px-2 py-0.5 bg-sage-100 border border-ink text-sage-700">${maxOverlap}/${totalParticipants} PRESENTI</strong>
+                    <span>TOP OVERLAP:</span>
+                    <strong class="px-2 py-0.5 bg-sage-100 border border-ink text-sage-700">${maxOverlap}/${totalParticipants} AVAILABLE</strong>
                 </div>
                 <div class="flex flex-wrap gap-1.5">
             `;
@@ -1476,7 +1736,7 @@
             });
 
             if (bestKeys.length > 6) {
-                html += `<span class="font-mono text-[10px] text-inkMuted self-center ml-1">+${bestKeys.length - 6} ALTRI</span>`;
+                html += `<span class="font-mono text-[10px] text-inkMuted self-center ml-1">+${bestKeys.length - 6} MORE</span>`;
             }
 
             html += `</div>`;
@@ -1487,11 +1747,10 @@
             const [dStr] = slotKey.split('_');
             const dayIdx = parseInt(dStr, 10);
 
+            selectedDayIndex = dayIdx;
             if (isMobileViewport && mobileDaysPerPage < 7) {
-                if (dayIdx < mobileDayStart || dayIdx >= mobileDayStart + mobileDaysPerPage) {
-                    mobileDayStart = Math.max(0, Math.min(7 - mobileDaysPerPage, dayIdx));
-                    buildScheduleSkeleton();
-                }
+                buildScheduleSkeleton();
+                renderGridAndStats();
             }
             inspectSlot(slotKey);
         };
@@ -1525,31 +1784,31 @@
 
             // Pannello Laterale
             document.getElementById('inspector-title').textContent = `${dayName} // ${timeLabel}`;
-            document.getElementById('inspector-badge').textContent = `${availableList.length}/${allParticipants.length} LIBERI`;
+            document.getElementById('inspector-badge').textContent = `${availableList.length}/${allParticipants.length} FREE`;
 
             const availEl = document.getElementById('inspector-available');
             const missEl = document.getElementById('inspector-missing');
 
             if (availableList.length > 0) {
-                availEl.innerHTML = `<span class="font-mono text-[10px] uppercase bg-sage-100 border border-ink px-1 py-0.2 mr-1 text-ink font-bold">PRESENTI:</span> ${availableList.map(escapeHtml).join(', ')}`;
+                availEl.innerHTML = `<span class="font-mono text-[10px] uppercase bg-sage-100 border border-ink px-1 py-0.2 mr-1 text-ink font-bold">AVAILABLE:</span> ${availableList.map(escapeHtml).join(', ')}`;
             } else {
-                availEl.innerHTML = `<span class="font-mono text-[11px] text-inkMuted">Nessun partecipante libero in questo slot.</span>`;
+                availEl.innerHTML = `<span class="font-mono text-[11px] text-inkMuted">No participants free in this slot.</span>`;
             }
 
             if (missingList.length > 0) {
-                missEl.innerHTML = `<span class="font-mono text-[10px] uppercase bg-paperDark border border-ink/40 px-1 py-0.2 mr-1 text-inkMuted">ASSENTI:</span> ${missingList.map(escapeHtml).join(', ')}`;
+                missEl.innerHTML = `<span class="font-mono text-[10px] uppercase bg-paperDark border border-ink/40 px-1 py-0.2 mr-1 text-inkMuted">UNAVAILABLE:</span> ${missingList.map(escapeHtml).join(', ')}`;
             } else {
                 missEl.innerHTML = '';
             }
 
-            // Barra Mobile Fissa in Basso (Stile LettuceMeet)
+            // Barra Mobile Fissa in Basso
             document.getElementById('mobile-inspector-title').textContent = `${dayName} ${timeLabel}`;
-            document.getElementById('mobile-inspector-badge').textContent = `${availableList.length}/${allParticipants.length} LIBERI`;
+            document.getElementById('mobile-inspector-badge').textContent = `${availableList.length}/${allParticipants.length} FREE`;
             const mobileBody = document.getElementById('mobile-inspector-body');
             if (availableList.length > 0) {
-                mobileBody.innerHTML = `<strong class="text-sage-700">Presenti:</strong> ${availableList.map(escapeHtml).join(', ')}`;
+                mobileBody.innerHTML = `<strong class="text-sage-700">Available:</strong> ${availableList.map(escapeHtml).join(', ')}`;
             } else {
-                mobileBody.textContent = 'Nessun partecipante disponibile in questa fascia oraria.';
+                mobileBody.textContent = 'No participants available in this time slot.';
             }
         };
 

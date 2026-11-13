@@ -1,87 +1,64 @@
 # Meetami
 [![Netlify Status](https://api.netlify.com/api/v1/badges/9d2636cf-2f1e-4c12-91cb-15cb2206c714/deploy-status)](https://app.netlify.com/projects/meetami/deploys)
 
-Welcome to **Meetami**! This repository contains the source code and configuration for the Meetami web application. It is built as a lightweight, fast-loading static web project ready for seamless deployment on Netlify.
+**Meetami** is a lightweight, zero-login multi-team meeting scheduler designed to effortlessly coordinate schedules across different teams using unique private links and interactive time grids.
 
-## 1. 🚀 Features
+Live deployment: [https://meetami.netlify.app/](https://meetami.netlify.app/)
 
-* **Single-Page Architecture:** Everything runs smoothly out of a streamlined `index.html` entry point.
-* **Zero-Config Deployment:** Pre-configured with `netlify.toml` for continuous deployment, custom headers, or redirect rules on Netlify.
-* **Fast & Responsive:** Designed to work cleanly across desktop and mobile browsers without heavy build-step overhead.
+## 🚀 Key Features
 
-*(Note: Feel free to update this section with specific features of Meetami once you unpack the `index.html` file!)*
+* **No Login Required:** Create a private room instantly and share the unique URL with your team.
+* **Interactive Grid Scheduling:** A clean 7-day × 16-hour grid (08:00 — 24:00) optimized for both desktop and mobile. Drag across time slots to mark your availability.
+* **Smart Overlap Detection:** Instantly spot optimal meeting times highlighted with highest overlap and top-slot markers.
+* **Participant Management:** Track who has joined, view individual availability, and tap cells to inspect who is free at specific times.
+* **Zero-Config Deployment:** Ready for instant static hosting and continuous deployment via Netlify.
 
----
+## 📂 Project Structure
 
-## 2. 📂 Project Structure
-
-```text
+```
 Meetami/
-├── index.html      # Main application entry point (HTML, styles, and scripts)
-├── netlify.toml    # Netlify deployment configuration
+├── index.html      # Complete single-page application (HTML, CSS, and Client Logic)
+├── netlify.toml    # Netlify hosting & routing configuration
 └── README.md       # Project documentation
 ```
 
----
+## 🛠️ Getting Started Locally
 
-## 3. 🛠️ Getting Started
+Since Meetami is built as a lightning-fast static web app, running it locally requires no complex backend or package manager installations.
 
-Because this project is a static web application, you do not need to install complex dependencies to run it locally.
+### Prerequisites
+* Any modern web browser (Chrome, Firefox, Safari, Edge)
+* *(Optional)* A local server like VS Code Live Server or Python's HTTP server.
 
-### 3.1. Prerequisites
-
-* A modern web browser (Chrome, Firefox, Safari, Edge)
-* *(Optional)* A local development server (like the VS Code **Live Server** extension, Python's `http.server`, or `npx serve`)
-
-### 3.2. Running Locally
-
-1. **Clone or extract the repository:**
+### Running the App
+1. Clone or download the repository:
    ```bash
-   git clone https://github.com/your-username/Meetami.git
-   cd Meetami
+   git clone https://github.com/your-username/meetami.git
+   cd meetami
    ```
+2. Open `index.html` directly in your browser, or spin up a local server:
+   ```bash
+   # Using Python 3
+   python -m http.server 8000
+   ```
+3. Navigate to `http://localhost:8000` to start scheduling!
 
-2. **Open the project:**
-   * **Direct method:** Simply double-click `index.html` to open it in your default browser.
-   * **Local server method (Recommended):**
-     ```bash
-     # Using Python 3
-     python -m http.server 8000
-     
-     # OR using Node.js
-     npx serve .
-     ```
-     Then navigate to `http://localhost:8000` (or the port shown in your terminal).
+## 🌐 Deployment
 
----
+This project is configured out-of-the-box for [Netlify](https://www.netlify.com/).
 
-## 4. 🌐 Deployment (Netlify)
-
-This project includes a `netlify.toml` file for automated configuration on [Netlify](https://www.netlify.com/).
-
-### 4.1. Deploy via Git
-1. Push this repository to GitHub, GitLab, or Bitbucket.
-2. Log in to your Netlify account and click **"Add new site" > "Import an existing project"**.
-3. Select your repository. Netlify will automatically detect the settings from `netlify.toml` and deploy your site.
-
-### 4.2. Deploy via Netlify CLI
-If you have the [Netlify CLI](https://docs.netlify.com/cli/get-started/) installed, you can deploy directly from your terminal:
+### Deploy via Netlify CLI
+If you have the Netlify CLI installed:
 ```bash
 netlify deploy --prod
 ```
 
----
+### Deploy via Git
+1. Push your repository to GitHub, GitLab, or Bitbucket.
+2. Link the repository in your Netlify dashboard. Netlify will automatically detect the static build settings and publish your live app.
 
-## 5. 🤝 Contributing
+## 🤝 Contributing
+Contributions, bug reports, and feature suggestions are welcome! Feel free to open an issue or submit a pull request.
 
-1. Fork the project.
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`).
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`).
-4. Push to the branch (`git push origin feature/AmazingFeature`).
-5. Open a Pull Request.
-
----
-
-## 6. 📄 License
-
-Distributed under the MIT License. See `LICENSE` for more information.
+## 📄 License
+Distributed under the MIT License. See `LICENSE` for more details.

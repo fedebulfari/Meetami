@@ -393,7 +393,7 @@
             <section class="lg:col-span-8 lg:order-2 flex flex-col">
                 <div class="bg-paperCard border border-ink shadow-tactile rounded-md flex-1 flex flex-col overflow-hidden">
                     
-                    <!-- Controlli Matrice + Paginatore Mobile Giorni -->
+                    <!-- Controlli Matrice -->
                     <div class="p-3 sm:px-4 border-b border-ink bg-paperDark flex flex-wrap items-center justify-between gap-2 scroll-safe-zone">
                         <div class="flex items-center justify-between w-full sm:w-auto gap-2">
                             <span id="mode-indicator-pill" class="px-2 py-0.5 text-[10px] sm:text-[11px] font-mono font-bold uppercase border border-ink bg-amberWarm/30 text-ink">
@@ -405,22 +405,6 @@
                                 class="sm:hidden btn-tactile px-2.5 py-1 rounded text-[10px] font-mono font-bold uppercase bg-paperCard text-ink flex items-center gap-1.5 shrink-0">
                                 <i class="fa-solid fa-users-viewfinder text-terracotta"></i>
                                 <span>See All</span>
-                            </button>
-                        </div>
-
-                        <!-- Controlli Paginazione Giorni su Schermi Piccoli (<640px) -->
-                        <div class="flex sm:hidden items-center gap-1.5 w-full justify-between pt-1.5 border-t border-ink/15">
-                            <button onclick="shiftMobileDays(-1)" id="mobile-prev-days" class="btn-tactile px-2.5 py-1 rounded bg-paper text-ink font-mono text-[11px] font-bold uppercase disabled:opacity-40">
-                                <i class="fa-solid fa-chevron-left mr-1"></i>Prev
-                            </button>
-                            <div class="flex items-center gap-1.5">
-                                <span id="mobile-days-range-label" class="font-mono text-[11px] font-bold uppercase text-ink">MON &ndash; THU</span>
-                                <button onclick="toggleMobileAllDaysView()" id="mobile-toggle-7d-btn" class="px-1.5 py-0.5 font-mono text-[10px] uppercase border border-ink bg-paperCard text-inkMuted">
-                                    7D
-                                </button>
-                            </div>
-                            <button onclick="shiftMobileDays(1)" id="mobile-next-days" class="btn-tactile px-2.5 py-1 rounded bg-paper text-ink font-mono text-[11px] font-bold uppercase disabled:opacity-40">
-                                Next<i class="fa-solid fa-chevron-right ml-1"></i>
                             </button>
                         </div>
 
@@ -667,11 +651,10 @@
         let lastTouchedSlotKey = null;
         let hasPendingDragChanges = false;
 
-        // Paginazione Giorni Mobile (< 640px)
+        // Vista Calendario Completa (7 giorni sempre visibili anche su telefono)
         let isMobileViewport = window.innerWidth < 640;
         let selectedDayIndex = 0;
-        let mobileDaysPerPage = window.innerWidth < 640 ? 4 : 7; // Default 4 giorni su telefono o 7G a scelta
-        let swipeHeaderStartX = null;
+        let mobileDaysPerPage = 7;
 
         // Fallback in memoria locale nel caso di preview offline
         let useLocalMemoryFallback = false;
@@ -729,7 +712,7 @@
         }
 
         // ============================================================================
-        // 2. GESTIONE VISTE (LANDING vs WORKSPACE) E SINCRONIZZAZIONE SINGOLO EVENTO
+        // 2. VISTA LANDING E SINCRONIZZAZIONE SINGOLO EVENTO PRIVATO
         // ============================================================================
         function showLandingView(showNotFoundBanner = false) {
             if (unsubscribeCurrentEvent) {
@@ -738,32 +721,30 @@
             }
             currentEventData = null;
             activeParticipant = null;
-            interactionMode = 'group';
 
             document.getElementById('landing-view').classList.remove('hidden');
             document.getElementById('workspace-view').classList.add('hidden');
-            document.getElementById('header-share-btn').classList.add('hidden');
             document.getElementById('mobile-bottom-inspector').classList.add('hidden');
+            document.getElementById('header-share-btn').classList.add('hidden');
 
-            const alertEl = document.getElementById('not-found-alert');
+            const notFoundAlert = document.getElementById('not-found-alert');
             if (showNotFoundBanner) {
-                alertEl.classList.remove('hidden');
+                notFoundAlert.classList.remove('hidden');
             } else {
-                alertEl.classList.add('hidden');
+                notFoundAlert.classList.add('hidden');
             }
         }
 
         function showWorkspaceView() {
             document.getElementById('landing-view').classList.add('hidden');
             document.getElementById('workspace-view').classList.remove('hidden');
-            document.getElementById('header-share-btn').classList.remove('hidden');
             document.getElementById('mobile-bottom-inspector').classList.remove('hidden');
-
+            document.getElementById('header-share-btn').classList.remove('hidden');
             buildScheduleSkeleton();
             renderAll();
         }
 
-        function getEventDocRef(eventId) {
+        function getSingleEventDocRef(eventId) {
             return doc(db, 'artifacts', appId, 'public', 'data', 'schedule_events', eventId);
         }
 
@@ -774,30 +755,31 @@
             }
 
             if (useLocalMemoryFallback) {
-                const localEvt = localEventsCache[eventId];
-                if (!localEvt) {
+                if (localEventsCache[eventId]) {
+                    currentEventData = localEventsCache[eventId];
+                    showWorkspaceView();
+                } else {
                     currentEventId = null;
                     updateUrlParam(null);
                     showLandingView(true);
-                    return;
                 }
-                currentEventData = localEvt;
-                showWorkspaceView();
                 return;
             }
 
             if (!currentUser) return;
 
-            const docRef = getEventDocRef(eventId);
+            const docRef = getSingleEventDocRef(eventId);
             unsubscribeCurrentEvent = onSnapshot(
                 docRef,
                 (docSnap) => {
                     if (!docSnap.exists()) {
                         currentEventId = null;
+                        currentEventData = null;
                         updateUrlParam(null);
                         showLandingView(true);
                         return;
                     }
+
                     currentEventData = docSnap.data();
                     if (activeParticipant && (!currentEventData.availabilities || !currentEventData.availabilities[activeParticipant])) {
                         activeParticipant = null;
@@ -805,9 +787,9 @@
                     }
                     showWorkspaceView();
                 },
-                (err) => {
-                    console.error("Error reading private room:", err);
-                    showToast("Unable to load the requested room", "error");
+                (error) => {
+                    console.error("Firestore sync error:", error);
+                    showToast("Error syncing room data", "error");
                 }
             );
         }
@@ -817,20 +799,21 @@
 
             if (useLocalMemoryFallback) {
                 localEventsCache[currentEventData.id] = currentEventData;
+                renderAll();
                 return;
             }
 
             if (!currentUser) return;
             try {
-                await setDoc(getEventDocRef(currentEventData.id), currentEventData);
+                await setDoc(getSingleEventDocRef(currentEventData.id), currentEventData);
             } catch (err) {
-                console.error("Error saving event:", err);
-                showToast("Cloud sync error", "error");
+                console.error("Save error:", err);
+                showToast("Could not save changes", "error");
             }
         }
 
         // ============================================================================
-        // 3. CREAZIONE, APERTURA TRAMITE CODICE/LINK ED ELIMINAZIONE EVENTO
+        // 3. CREAZIONE, APERTURA TRAMITE CODICE, CONDIVISIONE ED ELIMINAZIONE
         // ============================================================================
         window.goHomeNewEvent = function(e) {
             if (e) e.preventDefault();
@@ -841,14 +824,14 @@
 
         window.handleCreateEvent = async function(e, source = 'modal') {
             e.preventDefault();
-            const isLanding = source === 'landing';
 
-            const titleInput = document.getElementById(isLanding ? 'landing-event-title' : 'new-event-title');
-            const descInput = document.getElementById(isLanding ? 'landing-event-desc' : 'new-event-desc');
-            const creatorInput = document.getElementById(isLanding ? 'landing-event-creator' : 'new-event-creator');
+            const prefix = source === 'landing' ? 'landing' : 'new';
+            const titleInput = document.getElementById(`${prefix}-event-title`);
+            const descInput = document.getElementById(`${prefix}-event-desc`);
+            const creatorInput = document.getElementById(`${prefix}-event-creator`);
 
             const title = titleInput.value.trim();
-            const description = descInput.value.trim() || 'Mark your free hours on the grid and share the link with your teams.';
+            const description = descInput.value.trim() || 'Add your name and drag across the slots when you are free.';
             const creator = creatorInput.value.trim();
 
             if (!title) return;
@@ -872,21 +855,19 @@
             activeParticipant = creator || null;
             interactionMode = creator ? 'edit' : 'group';
 
-            if (useLocalMemoryFallback) {
-                localEventsCache[newId] = newEvent;
-            } else if (currentUser) {
-                await setDoc(getEventDocRef(newId), newEvent);
-            }
-
             updateUrlParam(newId);
-            closeNewEventModal();
+            await saveCurrentEventToDatabase();
+
+            if (source === 'modal') {
+                closeNewEventModal();
+            }
 
             titleInput.value = '';
             descInput.value = '';
             creatorInput.value = '';
 
             subscribeToSingleEvent(newId);
-            showToast(`Event created! Copy and share the link.`, "success");
+            showToast(`Private room "${title}" created!`, "success");
         };
 
         window.handleOpenExistingCode = function(e) {
@@ -898,19 +879,55 @@
             let extractedId = raw;
             try {
                 if (raw.includes('event=')) {
-                    const urlObj = new URL(raw.startsWith('http') ? raw : 'https://dummy.local/' + raw);
-                    const param = urlObj.searchParams.get('event');
-                    if (param) extractedId = param.trim();
+                    const url = new URL(raw.startsWith('http') ? raw : 'https://dummy.local/' + raw);
+                    extractedId = url.searchParams.get('event') || raw;
                 }
-            } catch (_) {
+            } catch (err) {
                 const match = raw.match(/event=([a-zA-Z0-9_-]+)/);
-                if (match && match[1]) extractedId = match[1];
+                if (match) extractedId = match[1];
             }
+
+            extractedId = extractedId.trim();
+            if (!extractedId) return;
 
             input.value = '';
             currentEventId = extractedId;
             updateUrlParam(extractedId);
             subscribeToSingleEvent(extractedId);
+        };
+
+        window.shareOrCopyEventLink = async function() {
+            if (!currentEventId) return;
+            let shareUrl = window.location.href;
+            try {
+                const url = new URL(window.location.href);
+                url.searchParams.set('event', currentEventId);
+                shareUrl = url.toString();
+            } catch (e) {
+                shareUrl = window.location.origin + window.location.pathname + '?event=' + currentEventId;
+            }
+
+            if (navigator.share && isMobileViewport) {
+                try {
+                    await navigator.share({
+                        title: `Meetami // ${currentEventData?.title || 'Meeting Poll'}`,
+                        text: 'Mark your availability on Meetami:',
+                        url: shareUrl
+                    });
+                    return;
+                } catch (err) {
+                    // Fallback to clipboard copy
+                }
+            }
+
+            const tempInput = document.createElement('textarea');
+            tempInput.value = shareUrl;
+            document.body.appendChild(tempInput);
+            tempInput.select();
+            document.execCommand('copy');
+            document.body.removeChild(tempInput);
+
+            showToast("Private room link copied to clipboard!", "success");
         };
 
         window.confirmDeleteEvent = function() {
@@ -935,22 +952,27 @@
 
             if (useLocalMemoryFallback) {
                 delete localEventsCache[idToDelete];
-            } else if (currentUser) {
-                try {
-                    await deleteDoc(getEventDocRef(idToDelete));
-                } catch (err) {
-                    console.error("Delete error:", err);
-                    showToast("Unable to delete the event", "error");
-                    return;
-                }
+                currentEventId = null;
+                currentEventData = null;
+                updateUrlParam(null);
+                showLandingView(false);
+                showToast("Event deleted", "info");
+                return;
             }
 
-            currentEventId = null;
-            currentEventData = null;
-            activeParticipant = null;
-            updateUrlParam(null);
-            showLandingView(false);
-            showToast("Event permanently deleted", "info");
+            if (!currentUser) return;
+            try {
+                await deleteDoc(getSingleEventDocRef(idToDelete));
+                currentEventId = null;
+                currentEventData = null;
+                activeParticipant = null;
+                updateUrlParam(null);
+                showLandingView(false);
+                showToast("Event permanently deleted", "info");
+            } catch (err) {
+                console.error("Delete error:", err);
+                showToast("Error deleting event", "error");
+            }
         };
 
         function updateUrlParam(eventId) {
@@ -962,253 +984,20 @@
                     url.searchParams.delete('event');
                 }
                 window.history.replaceState({}, '', url.toString());
-            } catch (_) {
+            } catch (e) {
                 // Ignore history restrictions in sandboxed iframes
             }
         }
 
-        window.shareOrCopyEventLink = async function() {
-            if (!currentEventId) return;
-            let shareUrl = window.location.href;
-            try {
-                const url = new URL(window.location.href);
-                url.searchParams.set('event', currentEventId);
-                shareUrl = url.toString();
-            } catch (_) {
-                shareUrl = window.location.origin + window.location.pathname + '?event=' + currentEventId;
-            }
-
-            if (navigator.share && isMobileViewport) {
-                try {
-                    await navigator.share({
-                        title: `Meetami // ${currentEventData?.title || 'Meeting'}`,
-                        text: 'Mark your available times on Meetami:',
-                        url: shareUrl
-                    });
-                    return;
-                } catch (_) {
-                    // Fallback to clipboard copy
-                }
-            }
-
-            const tempInput = document.createElement('textarea');
-            tempInput.value = shareUrl;
-            document.body.appendChild(tempInput);
-            tempInput.select();
-            document.execCommand('copy');
-            document.body.removeChild(tempInput);
-
-            showToast("Private link copied to clipboard!", "success");
-        };
-
         // ============================================================================
-        // 4. COSTRUZIONE MATRICE ORARIA E SELETTORE GIORNI MOBILE A PILLOLE
+        // 4. COSTRUZIONE MATRICE ORARIA COMPLETA (7 GIORNI SU MOBILE E DESKTOP)
         // ============================================================================
         function getVisibleDayIndices() {
-            if (!isMobileViewport || mobileDaysPerPage === 7) {
-                return [0, 1, 2, 3, 4, 5, 6];
-            }
-            if (mobileDaysPerPage === 1) {
-                return [selectedDayIndex];
-            }
-            let start = selectedDayIndex;
-            if (start < 0) start = 0;
-            if (start > 7 - mobileDaysPerPage) start = 7 - mobileDaysPerPage;
-
-            const indices = [];
-            for (let i = 0; i < mobileDaysPerPage; i++) {
-                indices.push(start + i);
-            }
-            return indices;
+            return [0, 1, 2, 3, 4, 5, 6];
         }
 
-        window.shiftMobileDays = function(direction) {
-            const maxStart = Math.max(0, 7 - mobileDaysPerPage);
-            selectedDayIndex = Math.max(0, Math.min(maxStart, selectedDayIndex + direction * 2));
-            buildScheduleSkeleton();
-            renderAll();
-        };
-
-        window.toggleMobileAllDaysView = function() {
-            mobileDaysPerPage = mobileDaysPerPage === 7 ? 4 : 7;
-            if (selectedDayIndex > 7 - mobileDaysPerPage) {
-                selectedDayIndex = Math.max(0, 7 - mobileDaysPerPage);
-            }
-            buildScheduleSkeleton();
-            renderAll();
-        };
-
-        window.selectMobileDay = function(dayIdx) {
-            selectedDayIndex = Math.max(0, Math.min(6, dayIdx));
-            buildScheduleSkeleton();
-            renderAll();
-        };
-
-        window.stepMobileActiveDay = function(delta) {
-            selectedDayIndex = (selectedDayIndex + delta + 7) % 7;
-            buildScheduleSkeleton();
-            renderAll();
-        };
-
-        window.setMobileViewSpan = function(span) {
-            mobileDaysPerPage = span;
-            buildScheduleSkeleton();
-            renderAll();
-        };
-
-        window.applyDayPreset = async function(presetType) {
-            if (!activeParticipant) {
-                showToast("Enter or select your name first to use quick presets!", "warning");
-                document.getElementById('participant-name-input').focus();
-                return;
-            }
-            if (!currentEventData) return;
-            interactionMode = 'edit';
-
-            if (!currentEventData.availabilities) currentEventData.availabilities = {};
-            const mySlots = new Set(currentEventData.availabilities[activeParticipant] || []);
-
-            let targetHours = [];
-            if (presetType === 'morning') {
-                targetHours = [8, 9, 10, 11, 12];
-            } else if (presetType === 'afternoon') {
-                targetHours = [14, 15, 16, 17, 18];
-            } else if (presetType === 'evening') {
-                targetHours = [19, 20, 21, 22, 23];
-            } else if (presetType === 'all') {
-                targetHours = [...HOURS];
-            }
-
-            if (presetType === 'clear') {
-                HOURS.forEach(h => mySlots.delete(`${selectedDayIndex}_${h}`));
-                showToast(`${DAYS[selectedDayIndex]} cleared`, "info");
-            } else {
-                const targetKeys = targetHours.map(h => `${selectedDayIndex}_${h}`);
-                const allAlreadySelected = targetKeys.every(k => mySlots.has(k));
-                if (allAlreadySelected) {
-                    targetKeys.forEach(k => mySlots.delete(k));
-                } else {
-                    targetKeys.forEach(k => mySlots.add(k));
-                }
-            }
-
-            currentEventData.availabilities[activeParticipant] = Array.from(mySlots);
-            renderAll();
-            await saveCurrentEventToDatabase();
-        };
-
         function renderMobileDayPills() {
-            const rangeLabel = document.getElementById('mobile-days-range-label');
-            const toggle7dBtn = document.getElementById('mobile-toggle-7d-btn');
-            const prevBtn = document.getElementById('mobile-prev-days');
-            const nextBtn = document.getElementById('mobile-next-days');
-
-            const visibleDays = getVisibleDayIndices();
-            if (rangeLabel && visibleDays.length > 0) {
-                const firstDay = DAYS_SHORT[visibleDays[0]].toUpperCase();
-                const lastDay = DAYS_SHORT[visibleDays[visibleDays.length - 1]].toUpperCase();
-                rangeLabel.textContent = firstDay === lastDay ? firstDay : `${firstDay} – ${lastDay}`;
-            }
-            if (toggle7dBtn) {
-                toggle7dBtn.className = mobileDaysPerPage === 7
-                    ? 'px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase border border-ink bg-ink text-paper'
-                    : 'px-1.5 py-0.5 font-mono text-[10px] uppercase border border-ink bg-paperCard text-inkMuted';
-            }
-            if (prevBtn) {
-                prevBtn.disabled = mobileDaysPerPage === 7 || visibleDays[0] <= 0;
-            }
-            if (nextBtn) {
-                nextBtn.disabled = mobileDaysPerPage === 7 || visibleDays[visibleDays.length - 1] >= 6;
-            }
-
-            const pillsContainer = document.getElementById('mobile-day-pills');
-            const activeDayTitle = document.getElementById('mobile-active-day-title');
-            const presetDayLabel = document.getElementById('preset-target-day-name');
-            const presetsBar = document.getElementById('day-quick-presets-bar');
-
-            if (presetDayLabel) {
-                presetDayLabel.textContent = DAYS[selectedDayIndex];
-            }
-            if (presetsBar) {
-                if (interactionMode === 'edit' && activeParticipant) {
-                    presetsBar.classList.remove('hidden');
-                } else {
-                    presetsBar.classList.add('hidden');
-                }
-            }
-
-            // Aggiorna bottoni densità (1G / 3G / 7G)
-            [1, 3, 7].forEach(span => {
-                const btn = document.getElementById(`span-btn-${span}`);
-                if (!btn) return;
-                if (mobileDaysPerPage === span) {
-                    btn.className = 'px-2.5 py-1 text-[10px] font-mono font-bold uppercase rounded-sm transition bg-ink text-paper';
-                } else {
-                    btn.className = 'px-2.5 py-1 text-[10px] font-mono font-bold uppercase rounded-sm transition text-inkMuted hover:text-ink';
-                }
-            });
-
-            if (activeDayTitle) {
-                activeDayTitle.textContent = DAYS[selectedDayIndex].toUpperCase();
-            }
-
-            if (!pillsContainer) return;
-
-            const availabilities = currentEventData?.availabilities || {};
-            const participants = Object.keys(availabilities);
-            const mySlots = activeParticipant ? (availabilities[activeParticipant] || []) : [];
-
-            pillsContainer.innerHTML = '';
-
-            for (let d = 0; d < 7; d++) {
-                const isFocused = d === selectedDayIndex;
-                const isVisibleInGrid = visibleDays.includes(d);
-
-                // Conta quante ore ha selezionato l'utente attivo in questo giorno
-                let myDayHours = 0;
-                // Conta il massimo di partecipanti presenti in questo giorno
-                let maxTeamInDay = 0;
-
-                HOURS.forEach(h => {
-                    const key = `${d}_${h}`;
-                    if (mySlots.includes(key)) myDayHours++;
-                    let c = 0;
-                    participants.forEach(p => {
-                        if ((availabilities[p] || []).includes(key)) c++;
-                    });
-                    if (c > maxTeamInDay) maxTeamInDay = c;
-                });
-
-                const btn = document.createElement('button');
-                btn.type = 'button';
-                btn.onclick = () => window.selectMobileDay(d);
-
-                let pillStyle = 'bg-paper text-ink border-ink/40 opacity-75';
-                if (isFocused) {
-                    pillStyle = 'bg-terracotta text-paper border-ink shadow-tactile-sm font-bold opacity-100 -translate-y-0.5';
-                } else if (isVisibleInGrid) {
-                    pillStyle = 'bg-paperCard text-ink border-ink font-bold opacity-100';
-                }
-
-                // Badge inferiore sulla pillola: mostra le proprie ore (se attivo) oppure un pallino verde se il team ha disponibilità
-                let badgeHtml = `<span class="text-[9px] font-mono opacity-40">&middot;</span>`;
-                if (activeParticipant && myDayHours > 0) {
-                    badgeHtml = `<span class="px-1 rounded-sm text-[9px] font-mono font-bold ${
-                        isFocused ? 'bg-paper text-ink' : 'bg-cobalt text-paper'
-                    }">${myDayHours}h</span>`;
-                } else if (maxTeamInDay > 0) {
-                    badgeHtml = `<span class="inline-block w-2 h-2 rounded-full border border-ink ${
-                        isFocused ? 'bg-amberWarm' : 'bg-sage-500'
-                    }"></span>`;
-                }
-
-                btn.className = `py-1.5 px-0.5 rounded border text-center transition flex flex-col items-center justify-between gap-1 ${pillStyle}`;
-                btn.innerHTML = `
-                    <span class="font-mono text-[10px] uppercase tracking-tighter leading-none">${DAYS_SHORT[d]}</span>
-                    <div class="h-3.5 flex items-center justify-center">${badgeHtml}</div>
-                `;
-                pillsContainer.appendChild(btn);
-            }
+            // Tutti i 7 giorni sono ora sempre visibili direttamente nella griglia
         }
 
         function buildScheduleSkeleton() {
@@ -1218,14 +1007,14 @@
 
             const visibleDays = getVisibleDayIndices();
 
-            // Costruisci Header Colonne Giorni
+            // Costruisci Header Colonne Giorni (Compatto su mobile per far entrare tutti i 7 giorni)
             headerRow.innerHTML = '';
             const thTime = document.createElement('th');
-            thTime.className = 'w-16 sm:w-24 py-2 px-1.5 sm:px-2.5 text-left font-mono text-[10px] font-bold uppercase tracking-wider text-ink border-r border-ink sticky left-0 bg-paperDark z-10 scroll-safe-zone';
+            thTime.className = 'w-11 sm:w-24 py-1.5 sm:py-2 px-1 sm:px-2.5 text-left font-mono text-[9px] sm:text-[10px] font-bold uppercase tracking-tighter sm:tracking-wider text-ink border-r border-ink sticky left-0 bg-paperDark z-10 scroll-safe-zone';
             thTime.innerHTML = `
                 <div class="flex items-center justify-between">
-                    <span>TIME</span>
-                    <span class="sm:hidden text-[9px] px-1 bg-paper border border-ink/40" title="Scroll zone">⇅</span>
+                    <span>HR</span>
+                    <span class="sm:hidden text-[8px] px-0.5 bg-paper border border-ink/40" title="Scroll zone">⇅</span>
                 </div>
             `;
             headerRow.appendChild(thTime);
@@ -1233,12 +1022,12 @@
             visibleDays.forEach(dayIdx => {
                 const isWeekend = dayIdx >= 5;
                 const th = document.createElement('th');
-                th.className = `py-2 px-1 text-center border-r border-ink last:border-r-0 scroll-safe-zone ${isWeekend ? 'bg-amberWarm/10' : ''}`;
+                th.className = `py-1.5 sm:py-2 px-0.5 sm:px-1 text-center border-r border-ink last:border-r-0 scroll-safe-zone ${isWeekend ? 'bg-amberWarm/10' : ''}`;
                 th.innerHTML = `
-                    <div class="font-mono text-[9px] ${isWeekend ? 'text-terracotta' : 'text-inkMuted'}">D.0${dayIdx + 1}</div>
-                    <div class="font-bold text-xs uppercase text-ink">${DAYS_SHORT[dayIdx]}</div>
+                    <div class="hidden sm:block font-mono text-[9px] ${isWeekend ? 'text-terracotta' : 'text-inkMuted'}">D.0${dayIdx + 1}</div>
+                    <div class="font-bold text-[10px] sm:text-xs uppercase text-ink leading-tight">${DAYS_SHORT[dayIdx]}</div>
                     <button onclick="toggleWholeDay(${dayIdx})" title="Select/Deselect all ${DAYS[dayIdx]}"
-                        class="mt-1 px-1.5 py-0.2 font-mono text-[9px] uppercase border border-ink/40 bg-paper hover:bg-ink hover:text-paper transition rounded-sm">
+                        class="mt-0.5 sm:mt-1 px-1 sm:px-1.5 py-0.2 font-mono text-[8px] sm:text-[9px] uppercase border border-ink/40 bg-paper hover:bg-ink hover:text-paper transition rounded-sm">
                         All
                     </button>
                 `;
@@ -1249,7 +1038,7 @@
             tbody.innerHTML = '';
             HOURS.forEach(hour => {
                 const nextHour = hour + 1;
-                const shortTime = `${String(hour).padStart(2, '0')}:00`;
+                const shortTime = `${String(hour).padStart(2, '0')}`;
                 const fullTime = `${String(hour).padStart(2, '0')}:00—${String(nextHour).padStart(2, '0')}:00`;
 
                 const tr = document.createElement('tr');
@@ -1257,17 +1046,16 @@
 
                 // Colonna Y: Fascia Oraria (Zona sicura per scorrere la pagina col pollice)
                 const tdHour = document.createElement('td');
-                tdHour.className = 'hour-axis-cell scroll-safe-zone py-1.5 px-1.5 sm:px-2.5 font-mono text-[10px] sm:text-[11px] font-bold text-ink whitespace-nowrap border-r border-ink bg-paperDark/95 sticky left-0 z-10 select-none';
+                tdHour.className = 'hour-axis-cell scroll-safe-zone py-1 px-1 sm:px-2.5 font-mono text-[10px] sm:text-[11px] font-bold text-ink whitespace-nowrap border-r border-ink bg-paperDark/95 sticky left-0 z-10 select-none';
                 tdHour.innerHTML = `
                     <div class="flex items-center justify-between">
-                        <span class="sm:hidden">${shortTime}</span>
+                        <span class="sm:hidden">${shortTime}:00</span>
                         <span class="hidden sm:inline">${fullTime}</span>
-                        <i class="fa-solid fa-grip-lines-vertical sm:hidden text-[9px] text-inkMuted/60"></i>
                     </div>
                 `;
                 tr.appendChild(tdHour);
 
-                // Colonne X: Giorni visibili
+                // Colonne X: Tutti i 7 giorni
                 visibleDays.forEach(dayIdx => {
                     const slotKey = `${dayIdx}_${hour}`;
                     const td = document.createElement('td');
@@ -1275,7 +1063,7 @@
                     td.dataset.slot = slotKey;
                     td.dataset.day = dayIdx;
                     td.dataset.hour = hour;
-                    td.className = 'slot-cell p-1 border-r border-ink/30 last:border-r-0 text-center cursor-pointer select-none h-11 sm:h-9 relative';
+                    td.className = 'slot-cell p-0.5 sm:p-1 border-r border-ink/30 last:border-r-0 text-center cursor-pointer select-none h-8 sm:h-9 relative';
 
                     // Mouse Desktop
                     td.addEventListener('mousedown', (e) => {
@@ -1681,25 +1469,24 @@
                             bgClass = 'bg-sage-700 text-paper font-bold';
                         }
                     }
-                    cell.className = `slot-cell p-1 border-r border-ink/30 last:border-r-0 text-center cursor-pointer select-none h-11 sm:h-9 relative ${bgClass} ${
+                    cell.className = `slot-cell p-0.5 sm:p-1 border-r border-ink/30 last:border-r-0 text-center cursor-pointer select-none h-8 sm:h-9 relative ${bgClass} ${
                         isMine ? 'my-slot-active' : ''
                     } ${isBest && !isMine ? 'best-slot-ring' : ''} ${isInspected ? 'slot-inspected' : ''}`;
 
                     if (count === 0) {
-                        cell.innerHTML = `<span class="text-[10px] opacity-25">&middot;</span>`;
+                        cell.innerHTML = `<span class="text-[9px] sm:text-[10px] opacity-25">&middot;</span>`;
                     } else {
                         cell.innerHTML = `
-                            <div class="flex items-center justify-center gap-1 text-[11px] font-mono leading-none">
+                            <div class="flex items-center justify-center gap-0.5 sm:gap-1 text-[9px] sm:text-[11px] font-mono leading-none tracking-tighter">
                                 <span>${count}/${totalParticipants}</span>
-                                ${isMine ? '<span class="w-2 h-2 rounded-full bg-cobalt border border-paper inline-block" title="Your slot"></span>' : ''}
-                                ${isBest ? '<span class="w-2 h-2 rounded-full bg-amberWarm border border-ink inline-block" title="Best slot"></span>' : ''}
+                                ${isMine ? '<span class="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-cobalt border border-paper inline-block shrink-0" title="Your slot"></span>' : ''}
+                                ${isBest ? '<span class="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-amberWarm border border-ink inline-block shrink-0" title="Best slot"></span>' : ''}
                             </div>
                         `;
                     }
                 }
             }
 
-            renderMobileDayPills();
             renderBestSlotsSummary(slotCounts, maxOverlap, totalParticipants);
         }
 
@@ -1745,13 +1532,7 @@
 
         window.focusAndInspectSlot = function(slotKey) {
             const [dStr] = slotKey.split('_');
-            const dayIdx = parseInt(dStr, 10);
-
-            selectedDayIndex = dayIdx;
-            if (isMobileViewport && mobileDaysPerPage < 7) {
-                buildScheduleSkeleton();
-                renderGridAndStats();
-            }
+            selectedDayIndex = parseInt(dStr, 10);
             inspectSlot(slotKey);
         };
 

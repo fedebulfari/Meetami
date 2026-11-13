@@ -1,0 +1,1606 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>MEETAMI // Pianificatore Orari Condivisi</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Space Grotesk, Instrument Serif, Space Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        paper: '#F7F5F0',
+                        paperDark: '#EFECE4',
+                        paperCard: '#FCFBF8',
+                        ink: '#181816',
+                        inkMuted: '#65625A',
+                        hairline: '#D8D4CC',
+                        terracotta: '#E04F33',
+                        sage: {
+                            100: '#DCECE3',
+                            300: '#94C9AE',
+                            500: '#3B8A64',
+                            700: '#1D593D',
+                        },
+                        amberWarm: '#E59838',
+                        cobalt: '#2046C7'
+                    },
+                    fontFamily: {
+                        sans: ['Space Grotesk', 'sans-serif'],
+                        serif: ['Instrument Serif', 'serif'],
+                        mono: ['Space Mono', 'monospace'],
+                    },
+                    boxShadow: {
+                        'tactile': '3px 3px 0px 0px #181816',
+                        'tactile-sm': '2px 2px 0px 0px #181816',
+                        'tactile-lg': '5px 5px 0px 0px #181816',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            background-color: #F7F5F0;
+            color: #181816;
+            font-family: 'Space Grotesk', sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+            background-image: radial-gradient(#D8D4CC 0.75px, transparent 0.75px);
+            background-size: 20px 20px;
+            overscroll-behavior-y: contain;
+        }
+        input, textarea, pre, code {
+            user-select: text;
+            -webkit-user-select: text;
+        }
+        /* Scrollbar stile archivio tecnico */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #EFECE4;
+            border-left: 1px solid #181816;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #181816;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #E04F33;
+        }
+        /* Interazioni tattili bottoni Farflung */
+        .btn-tactile {
+            border: 1px solid #181816;
+            box-shadow: 2px 2px 0px 0px #181816;
+            transition: transform 0.1s ease, box-shadow 0.1s ease, background-color 0.15s ease;
+        }
+        .btn-tactile:hover {
+            transform: translate(-1px, -1px);
+            box-shadow: 3px 3px 0px 0px #181816;
+        }
+        .btn-tactile:active {
+            transform: translate(1px, 1px);
+            box-shadow: 0px 0px 0px 0px #181816;
+        }
+        /* Celle della griglia oraria */
+        .slot-cell {
+            transition: background-color 0.06s ease;
+        }
+        /* In modalità modifica, blocca lo scroll nativo quando si trascina il dito sulla griglia */
+        .edit-mode-grid .slot-cell {
+            touch-action: none;
+        }
+        /* In modalità vista gruppo, permette lo scroll verticale fluido su mobile */
+        .view-mode-grid .slot-cell {
+            touch-action: pan-y;
+        }
+        .slot-cell:hover {
+            outline: 1.5px solid #181816;
+            z-index: 10;
+        }
+        .slot-inspected {
+            outline: 2.5px solid #181816 !important;
+            z-index: 15;
+        }
+        /* Indicatore slot selezionato dal partecipante attivo */
+        .my-slot-active {
+            box-shadow: inset 0 0 0 2.5px #2046C7 !important;
+            background-image: repeating-linear-gradient(
+                -45deg,
+                transparent,
+                transparent 5px,
+                rgba(32, 70, 199, 0.14) 5px,
+                rgba(32, 70, 199, 0.14) 10px
+            );
+        }
+        /* Indicatore miglior slot di gruppo */
+        .best-slot-ring {
+            box-shadow: inset 0 0 0 2px #E04F33;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col selection:bg-terracotta selection:text-white pb-24 lg:pb-8">
+
+    <!-- BARRA INDICE SUPERIORE (FARFLUNG EDITORIAL HEADER) -->
+    <header class="bg-paper border-b border-ink sticky top-0 z-30">
+        <!-- Striscia metadati coordinate -->
+        <div class="border-b border-ink/20 bg-paperDark px-3 sm:px-6 lg:px-8 py-1 flex items-center justify-between text-[10px] sm:text-[11px] font-mono text-inkMuted uppercase tracking-wider">
+            <div class="flex items-center gap-3">
+                <span>MEETAMI // PRIVATE LINK SCHEDULER</span>
+                <span class="hidden md:inline">GRID: 7D × 16H [08:00—24:00]</span>
+            </div>
+            <div class="flex items-center gap-3">
+                <span class="inline-flex items-center gap-1.5 text-ink font-bold">
+                    <span id="status-dot" class="w-2 h-2 rounded-full bg-sage-500 border border-ink inline-block animate-pulse"></span>
+                    SYNC: LIVE
+                </span>
+            </div>
+        </div>
+
+        <!-- Header Principale -->
+        <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-14 sm:h-16 flex items-center justify-between gap-2">
+            <a href="?" onclick="goHomeNewEvent(event)" class="flex items-center gap-3 group">
+                <div class="w-9 h-9 sm:w-10 sm:h-10 bg-terracotta text-paper border border-ink shadow-tactile-sm flex items-center justify-center font-mono font-bold text-base sm:text-lg group-hover:bg-ink transition">
+                    MM
+                </div>
+                <div>
+                    <div class="flex items-baseline gap-2">
+                        <h1 class="font-bold text-xl sm:text-2xl tracking-tight text-ink uppercase leading-none">
+                            Meet<span class="font-serif italic font-normal capitalize text-2xl sm:text-3xl text-terracotta">ami</span>
+                        </h1>
+                        <span class="hidden sm:inline-block font-mono text-[10px] uppercase px-1.5 py-0.5 bg-paperDark border border-ink text-ink">
+                            PRIVATE ROOMS
+                        </span>
+                    </div>
+                    <p class="text-[11px] font-mono text-inkMuted hidden md:block mt-0.5">
+                        Pianificazione incontri multi-team tramite link segreto &mdash; Nessun login richiesto
+                    </p>
+                </div>
+            </a>
+
+            <!-- Azioni Globali -->
+            <div class="flex items-center gap-2">
+                <button id="header-share-btn" onclick="shareOrCopyEventLink()" class="hidden btn-tactile inline-flex items-center gap-1.5 px-3 py-1.5 sm:py-2 rounded text-xs font-mono font-bold uppercase tracking-wider bg-amberWarm/30 hover:bg-amberWarm/50 text-ink">
+                    <i class="fa-solid fa-share-nodes text-[11px]"></i>
+                    <span>Condividi</span>
+                </button>
+                <button onclick="openNewEventModal()" class="btn-tactile inline-flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded text-xs font-mono font-bold uppercase tracking-wider bg-terracotta text-paper">
+                    <i class="fa-solid fa-plus"></i>
+                    <span>Nuovo Evento</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- ========================================================================= -->
+    <!-- VISTA 1: LANDING / CREAZIONE STANZA PRIVATA (Quando non c'è ?event=ID)    -->
+    <!-- ========================================================================= -->
+    <section id="landing-view" class="hidden flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 py-8 sm:py-12 flex flex-col justify-center">
+        
+        <!-- Banner Stanza Non Trovata / Eliminata -->
+        <div id="not-found-alert" class="hidden mb-6 p-4 bg-terracotta/10 border-2 border-terracotta shadow-tactile rounded-md flex items-start gap-3">
+            <div class="w-8 h-8 bg-terracotta text-paper border border-ink flex items-center justify-center shrink-0 mt-0.5">
+                <i class="fa-solid fa-link-slash text-sm"></i>
+            </div>
+            <div>
+                <h3 class="font-mono text-xs font-bold uppercase text-terracotta">STANZA NON TROVATA O ELIMINATA</h3>
+                <p class="text-xs text-ink mt-1 leading-relaxed">
+                    L'evento associato a questo link non esiste più o il codice nell'URL non è corretto. Puoi creare subito un nuovo evento privato qui sotto.
+                </p>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
+            <!-- Card Creazione Evento Diretta -->
+            <div class="md:col-span-7 bg-paperCard border-2 border-ink shadow-tactile-lg rounded-md overflow-hidden">
+                <div class="bg-paperDark border-b border-ink px-5 py-3 flex items-center justify-between">
+                    <span class="font-mono text-xs font-bold uppercase tracking-wider text-ink flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 bg-terracotta border border-ink inline-block"></span>
+                        CREA UN NUOVO INCONTRO PRIVATO
+                    </span>
+                    <span class="font-mono text-[10px] px-2 py-0.5 bg-paper border border-ink">NO-LOGIN</span>
+                </div>
+
+                <form onsubmit="handleCreateEvent(event, 'landing')" class="p-5 sm:p-6 space-y-4">
+                    <p class="text-xs text-inkMuted leading-relaxed">
+                        Ogni evento su <strong>Meetami</strong> è privato e accessibile esclusivamente tramite il suo link univoco. Nessun altro evento del database è visibile pubblicamente.
+                    </p>
+
+                    <div>
+                        <label class="block font-mono text-[11px] font-bold uppercase text-ink mb-1">Titolo dell'incontro *</label>
+                        <input type="text" id="landing-event-title" required maxlength="60" placeholder="Es. Allineamento Design & Dev"
+                            class="w-full px-3.5 py-2.5 rounded bg-paper border border-ink text-sm focus:outline-none focus:ring-2 focus:ring-terracotta">
+                    </div>
+
+                    <div>
+                        <label class="block font-mono text-[11px] font-bold uppercase text-ink mb-1">Note o obiettivo (opzionale)</label>
+                        <input type="text" id="landing-event-desc" maxlength="120" placeholder="Es. Scegliamo 1h tra Lunedì e Venerdì"
+                            class="w-full px-3.5 py-2.5 rounded bg-paper border border-ink text-sm focus:outline-none focus:ring-2 focus:ring-terracotta">
+                    </div>
+
+                    <div>
+                        <label class="block font-mono text-[11px] font-bold uppercase text-ink mb-1">Il tuo nome + team (opzionale)</label>
+                        <input type="text" id="landing-event-creator" maxlength="35" placeholder="Es. Marco (Backend)"
+                            class="w-full px-3.5 py-2.5 rounded bg-paper border border-ink text-sm font-mono focus:outline-none focus:ring-2 focus:ring-terracotta">
+                    </div>
+
+                    <button type="submit" class="w-full btn-tactile py-3 rounded text-xs font-mono font-bold uppercase tracking-wider bg-terracotta text-paper flex items-center justify-center gap-2">
+                        <span>Genera Stanza e Link Condivisibile</span>
+                        <i class="fa-solid fa-arrow-right"></i>
+                    </button>
+                </form>
+            </div>
+
+            <!-- Colonna Laterale: Apri tramite Link/Codice + Come Funziona -->
+            <div class="md:col-span-5 space-y-5">
+                <div class="bg-paperCard border border-ink shadow-tactile rounded-md overflow-hidden">
+                    <div class="bg-paperDark border-b border-ink px-4 py-2.5">
+                        <h3 class="font-mono text-xs font-bold uppercase tracking-wider text-ink">
+                            HAI GIÀ UN LINK O CODICE STANZA?
+                        </h3>
+                    </div>
+                    <form onsubmit="handleOpenExistingCode(event)" class="p-4 space-y-3">
+                        <p class="text-xs text-inkMuted leading-relaxed">
+                            Incolla il link completo oppure il codice dell'evento (es. <code>evt_a8f9k2</code>) ricevuto dal tuo team:
+                        </p>
+                        <div class="flex gap-2">
+                            <input type="text" id="join-event-code-input" required placeholder="Link o codice evt_..."
+                                class="flex-1 min-w-0 px-3 py-2 text-xs font-mono bg-paper border border-ink rounded focus:outline-none focus:ring-2 focus:ring-cobalt">
+                            <button type="submit" class="btn-tactile px-3.5 py-2 rounded bg-ink text-paper text-xs font-mono font-bold uppercase shrink-0">
+                                Apri
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="bg-paperCard border border-ink shadow-tactile rounded-md p-4 space-y-3">
+                    <div class="font-mono text-[11px] font-bold uppercase text-ink border-b border-ink/20 pb-1.5">
+                        COME FUNZIONA MEETAMI //
+                    </div>
+                    <ul class="space-y-2 text-xs text-inkMuted font-mono">
+                        <li class="flex items-start gap-2">
+                            <span class="px-1.5 py-0.2 bg-ink text-paper text-[10px] font-bold shrink-0">01</span>
+                            <span>Crea l'evento e invia il link privato ai team.</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <span class="px-1.5 py-0.2 bg-ink text-paper text-[10px] font-bold shrink-0">02</span>
+                            <span>Su telefono o PC trascina il dito sugli orari in cui sei libero, stile LettuceMeet.</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <span class="px-1.5 py-0.2 bg-ink text-paper text-[10px] font-bold shrink-0">03</span>
+                            <span>Individua subito gli slot verdi con la massima sovrapposizione.</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========================================================================= -->
+    <!-- VISTA 2: STANZA EVENTO ATTIVA (Accessibile solo con ?event=ID)            -->
+    <!-- ========================================================================= -->
+    <main id="workspace-view" class="hidden flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 flex flex-col gap-4 sm:gap-6">
+        
+        <!-- INTESTAZIONE COMPATTA EVENTO + SWITCHER MODALITÀ STILE LETTUCEMEET -->
+        <div class="bg-paperCard border border-ink shadow-tactile rounded-md p-3.5 sm:p-5">
+            <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                
+                <!-- Info Stanza Privata -->
+                <div class="min-w-0 flex-1">
+                    <div class="flex flex-wrap items-center gap-2 mb-1">
+                        <span class="font-mono text-[10px] uppercase tracking-widest px-1.5 py-0.5 bg-sage-100 border border-ink text-ink font-bold">
+                            <i class="fa-solid fa-lock text-[9px] mr-1"></i>STANZA PRIVATA
+                        </span>
+                        <span id="current-event-id-badge" class="px-1.5 py-0.5 text-[10px] font-mono bg-paperDark text-inkMuted border border-ink/30"></span>
+                    </div>
+                    <h2 id="current-event-title" class="font-bold text-ink text-lg sm:text-2xl leading-tight truncate">Titolo Evento</h2>
+                    <p id="current-event-desc" class="text-xs text-inkMuted leading-relaxed mt-0.5 line-clamp-2">Descrizione evento</p>
+                </div>
+
+                <!-- Azioni Link & Eliminazione -->
+                <div class="flex flex-wrap items-center gap-2 shrink-0">
+                    <button onclick="shareOrCopyEventLink()" class="btn-tactile flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded text-xs font-mono font-bold uppercase bg-amberWarm/30 hover:bg-amberWarm/50 text-ink">
+                        <i class="fa-solid fa-link text-[11px]"></i>
+                        <span>Copia / Condividi Link</span>
+                    </button>
+                    <button onclick="confirmDeleteEvent()" title="Elimina definitivamente questo evento" class="btn-tactile inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded text-xs font-mono font-bold uppercase bg-paper hover:bg-terracotta hover:text-paper text-ink">
+                        <i class="fa-solid fa-trash-can text-[11px]"></i>
+                        <span class="hidden sm:inline">Elimina</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- BARRA LETTUCEMEET: SELETTORE MODALITÀ (GRUPPO vs I MIEI ORARI) -->
+            <div class="mt-4 pt-3.5 border-t border-ink/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div class="grid grid-cols-2 sm:inline-flex bg-paperDark p-1 rounded border border-ink gap-1">
+                    <button id="tab-group-btn" onclick="switchInteractionMode('group')"
+                        class="px-3.5 py-2 rounded text-xs font-mono font-bold uppercase tracking-wider transition flex items-center justify-center gap-2 bg-ink text-paper shadow-tactile-sm">
+                        <i class="fa-solid fa-users-viewfinder"></i>
+                        <span>Risultati Gruppo</span>
+                    </button>
+                    <button id="tab-edit-btn" onclick="switchInteractionMode('edit')"
+                        class="px-3.5 py-2 rounded text-xs font-mono font-bold uppercase tracking-wider transition flex items-center justify-center gap-2 text-ink hover:bg-paper">
+                        <i class="fa-solid fa-hand-pointer"></i>
+                        <span id="tab-edit-label">I Miei Orari</span>
+                    </button>
+                </div>
+
+                <!-- Prompt rapido inserimento nome quando si clicca "I Miei Orari" o dalla barra -->
+                <div class="flex items-center gap-2 flex-1 sm:max-w-md justify-end">
+                    <form onsubmit="handleAddOrSelectParticipant(event)" class="flex w-full gap-1.5">
+                        <input type="text" id="participant-name-input" placeholder="Il tuo Nome + Team (es. Sara PM)..." maxlength="35" required
+                            class="flex-1 min-w-0 px-3 py-1.5 text-xs font-mono bg-paper border border-ink rounded focus:outline-none focus:ring-2 focus:ring-cobalt">
+                        <button type="submit" class="btn-tactile px-3 py-1.5 rounded bg-cobalt text-paper text-xs font-mono font-bold uppercase shrink-0">
+                            Segna Orari
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Banner Utente Attivo in Modifica (visibile quando si segnano i propri orari) -->
+            <div id="active-user-banner" class="hidden mt-3 p-2.5 sm:px-3.5 rounded bg-cobalt/10 border border-cobalt flex flex-wrap items-center justify-between gap-2">
+                <div class="flex items-center gap-2.5 min-w-0">
+                    <div class="w-6 h-6 rounded bg-cobalt text-paper border border-ink flex items-center justify-center font-mono text-xs shrink-0">
+                        <i class="fa-solid fa-pen"></i>
+                    </div>
+                    <div class="text-xs">
+                        <span class="font-mono text-[10px] uppercase tracking-wider text-cobalt font-bold mr-1.5">STAI MODIFICANDO:</span>
+                        <strong id="active-user-name" class="text-ink font-bold">Nome</strong>
+                        <span class="hidden sm:inline text-inkMuted font-mono text-[11px] ml-2">&mdash; Trascina sulle celle per segnare quando ci sei</span>
+                    </div>
+                </div>
+                <div class="flex items-center gap-1.5 shrink-0">
+                    <button onclick="clearMyAvailability()" class="px-2 py-1 text-[10px] font-mono font-bold uppercase bg-paper border border-ink rounded hover:bg-terracotta hover:text-paper transition">
+                        <i class="fa-solid fa-eraser mr-1"></i>Azzera
+                    </button>
+                    <button onclick="switchInteractionMode('group')" class="px-2.5 py-1 text-[10px] font-mono font-bold uppercase bg-cobalt text-paper border border-ink rounded hover:bg-ink transition">
+                        <i class="fa-solid fa-check mr-1"></i>Fatto
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- GRIGLIA WORKSPACE PRINCIPALE -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+
+            <!-- COLONNA PRINCIPALE (SU MOBILE È IN CIMA): MATRICE ORARIA LETTUCEMEET (8 col su Desktop) -->
+            <section class="lg:col-span-8 lg:order-2 flex flex-col">
+                <div class="bg-paperCard border border-ink shadow-tactile rounded-md flex-1 flex flex-col overflow-hidden">
+                    
+                    <!-- Controlli Matrice + Paginatore Mobile Giorni (Stile LettuceMeet) -->
+                    <div class="p-3 sm:px-4 border-b border-ink bg-paperDark flex flex-wrap items-center justify-between gap-2">
+                        <div class="flex items-center gap-2">
+                            <span id="mode-indicator-pill" class="px-2 py-0.5 text-[10px] sm:text-[11px] font-mono font-bold uppercase border border-ink bg-amberWarm/30 text-ink">
+                                VISTA GRUPPO: TOCCA UNA CELLA PER I DETTAGLI
+                            </span>
+                        </div>
+
+                        <!-- Controlli Paginazione Giorni su Schermi Piccoli (<640px) -->
+                        <div class="flex sm:hidden items-center gap-1.5 w-full justify-between pt-1 border-t border-ink/15">
+                            <button onclick="shiftMobileDays(-1)" id="mobile-prev-days" class="btn-tactile px-2.5 py-1 rounded bg-paper text-ink font-mono text-[11px] font-bold uppercase disabled:opacity-40">
+                                <i class="fa-solid fa-chevron-left mr-1"></i>Prec
+                            </button>
+                            <div class="flex items-center gap-1.5">
+                                <span id="mobile-days-range-label" class="font-mono text-[11px] font-bold uppercase text-ink">LUN &ndash; GIO</span>
+                                <button onclick="toggleMobileAllDaysView()" id="mobile-toggle-7d-btn" class="px-1.5 py-0.5 font-mono text-[10px] uppercase border border-ink bg-paperCard text-inkMuted">
+                                    7G
+                                </button>
+                            </div>
+                            <button onclick="shiftMobileDays(1)" id="mobile-next-days" class="btn-tactile px-2.5 py-1 rounded bg-paper text-ink font-mono text-[11px] font-bold uppercase disabled:opacity-40">
+                                Succ<i class="fa-solid fa-chevron-right ml-1"></i>
+                            </button>
+                        </div>
+
+                        <!-- Legenda Tattile -->
+                        <div class="hidden sm:flex items-center gap-3 text-[11px] font-mono shrink-0 bg-paper px-2.5 py-1 border border-ink rounded">
+                            <div class="flex items-center gap-1.5">
+                                <span class="w-3 h-3 border-2 border-cobalt bg-sage-100 inline-block"></span>
+                                <span class="text-ink font-bold">TU</span>
+                            </div>
+                            <span class="text-ink/30">|</span>
+                            <div class="flex items-center gap-1">
+                                <span class="w-3 h-3 bg-paperCard border border-ink/40 inline-block"></span>
+                                <span class="w-3 h-3 bg-sage-100 border border-ink/40 inline-block"></span>
+                                <span class="w-3 h-3 bg-sage-300 border border-ink/40 inline-block"></span>
+                                <span class="w-3 h-3 bg-sage-500 border border-ink/40 inline-block"></span>
+                                <span class="w-3 h-3 bg-sage-700 border border-ink/40 inline-block"></span>
+                                <span class="text-ink font-bold ml-1">TEAM</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Griglia Settimanale Responsive -->
+                    <div class="overflow-x-auto flex-1 p-2 sm:p-4 bg-paper/60">
+                        <table id="schedule-table" class="w-full border-collapse table-fixed border border-ink bg-paperCard view-mode-grid">
+                            <thead>
+                                <tr class="bg-paperDark border-b border-ink" id="schedule-grid-header-row">
+                                    <!-- Generato dinamicamente in base ai giorni visibili -->
+                                </tr>
+                            </thead>
+                            <tbody id="schedule-grid-body" class="text-xs font-mono">
+                                <!-- Generato dinamicamente dalle 08:00 alle 24:00 -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Footer Tecnico Matrice -->
+                    <div class="px-3 sm:px-4 py-2 bg-paperDark border-t border-ink flex flex-wrap items-center justify-between text-[10px] font-mono text-inkMuted gap-2">
+                        <span>FASCE: 08:00 &mdash; 24:00 (1 ORA)</span>
+                        <span>BORDO BLU = I TUOI ORARI // PUNTO AMBRA = MIGLIOR SLOT</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- COLONNA LATERALE: PARTECIPANTI & RADAR SOVRAPPOSIZIONI (4 col su Desktop) -->
+            <aside class="lg:col-span-4 lg:order-1 space-y-5">
+                
+                <!-- PANNELLO PARTECIPANTI (TOCCA UN NOME PER MODIFICARE) -->
+                <div class="bg-paperCard border border-ink shadow-tactile rounded-md overflow-hidden">
+                    <div class="bg-paperDark border-b border-ink px-4 py-2.5 flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <span class="font-mono text-[10px] font-bold px-1.5 py-0.5 bg-ink text-paper">01</span>
+                            <h3 class="font-mono text-xs font-bold uppercase tracking-wider text-ink">
+                                Partecipanti
+                            </h3>
+                        </div>
+                        <span id="participants-count-badge" class="font-mono text-[10px] font-bold px-2 py-0.5 bg-paper border border-ink text-ink">
+                            0 PRESENTI
+                        </span>
+                    </div>
+
+                    <div class="p-4">
+                        <p class="text-xs text-inkMuted mb-3 leading-relaxed">
+                            Tocca il tuo nome qui sotto per modificare i tuoi orari o aggiungiti dalla barra superiore:
+                        </p>
+                        <div class="space-y-1.5 max-h-56 overflow-y-auto pr-1" id="participants-list">
+                            <p class="font-mono text-xs text-inkMuted italic text-center py-2">Nessun partecipante registrato.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PANNELLO RADAR MIGLIORI ORARI & DETTAGLIO CELLA -->
+                <div class="bg-paperCard border border-ink shadow-tactile rounded-md overflow-hidden">
+                    <div class="bg-paperDark border-b border-ink px-4 py-2.5 flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <span class="font-mono text-[10px] font-bold px-1.5 py-0.5 bg-ink text-paper">02</span>
+                            <h3 class="font-mono text-xs font-bold uppercase tracking-wider text-ink">
+                                Migliori Orari & Dettagli
+                            </h3>
+                        </div>
+                        <i class="fa-solid fa-compass text-terracotta text-xs"></i>
+                    </div>
+
+                    <div class="p-4">
+                        <!-- Migliori slot calcolati -->
+                        <div id="best-slots-container" class="mb-4">
+                            <div class="font-mono text-xs text-inkMuted">In attesa di disponibilità...</div>
+                        </div>
+
+                        <!-- Box Ispezione Cella (Desktop & Mobile) -->
+                        <div id="slot-inspector" class="p-3 rounded bg-paper border border-ink">
+                            <div class="flex items-center justify-between pb-2 mb-2 border-b border-ink/20">
+                                <span id="inspector-title" class="font-mono text-xs font-bold uppercase text-ink">DETTAGLIO FASCIA //</span>
+                                <span id="inspector-badge" class="font-mono text-[10px] font-bold px-2 py-0.5 bg-paperDark border border-ink text-ink">-</span>
+                            </div>
+                            <div id="inspector-available" class="text-xs text-sage-700 font-medium mb-1.5 leading-snug">
+                                <span class="font-mono text-[11px] text-inkMuted">Tocca o passa il mouse su una cella per vedere chi è libero.</span>
+                            </div>
+                            <div id="inspector-missing" class="text-xs text-inkMuted leading-snug"></div>
+                        </div>
+                    </div>
+                </div>
+
+            </aside>
+        </div>
+    </main>
+
+    <!-- BARRA INFERIORE LIVE SU MOBILE (STILE LETTUCEMEET) PER ISPEZIONARE GLI SLOT -->
+    <div id="mobile-bottom-inspector" class="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-paperCard border-t-2 border-ink shadow-tactile-lg px-3.5 py-2.5 hidden">
+        <div class="flex items-center justify-between gap-2 mb-1">
+            <div class="flex items-center gap-2 min-w-0">
+                <span class="w-2 h-2 rounded-full bg-terracotta border border-ink shrink-0"></span>
+                <span id="mobile-inspector-title" class="font-mono text-xs font-bold uppercase text-ink truncate">SELEZIONA UNA CELLA</span>
+            </div>
+            <span id="mobile-inspector-badge" class="font-mono text-[10px] font-bold px-2 py-0.5 bg-sage-100 border border-ink text-ink shrink-0">0/0 LIBERI</span>
+        </div>
+        <div id="mobile-inspector-body" class="text-[11px] font-mono text-inkMuted truncate">
+            Tocca uno slot sulla griglia per leggere i partecipanti presenti.
+        </div>
+    </div>
+
+    <!-- MODALE: CREA NUOVO EVENTO -->
+    <div id="new-event-modal" class="fixed inset-0 z-50 hidden bg-ink/60 backdrop-blur-[2px] flex items-center justify-center p-4">
+        <div class="bg-paperCard border-2 border-ink max-w-md w-full shadow-tactile-lg rounded-md overflow-hidden">
+            <div class="bg-paperDark border-b border-ink px-5 py-3 flex items-center justify-between">
+                <h3 class="font-mono text-xs font-bold uppercase tracking-wider text-ink flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 bg-terracotta border border-ink inline-block"></span>
+                    NUOVO INCONTRO PRIVATO
+                </h3>
+                <button onclick="closeNewEventModal()" class="text-ink hover:text-terracotta p-1">
+                    <i class="fa-solid fa-xmark text-base"></i>
+                </button>
+            </div>
+            <form onsubmit="handleCreateEvent(event, 'modal')" class="p-5 space-y-4">
+                <div>
+                    <label class="block font-mono text-[11px] font-bold uppercase text-ink mb-1">Titolo dell'incontro *</label>
+                    <input type="text" id="new-event-title" required maxlength="60" placeholder="Es. Allineamento Design & Engineering"
+                        class="w-full px-3.5 py-2.5 rounded bg-paper border border-ink text-sm focus:outline-none focus:ring-2 focus:ring-terracotta">
+                </div>
+                <div>
+                    <label class="block font-mono text-[11px] font-bold uppercase text-ink mb-1">Note / Obiettivo (opzionale)</label>
+                    <input type="text" id="new-event-desc" maxlength="120" placeholder="Es. Call settimanale di 1h"
+                        class="w-full px-3.5 py-2.5 rounded bg-paper border border-ink text-sm focus:outline-none focus:ring-2 focus:ring-terracotta">
+                </div>
+                <div>
+                    <label class="block font-mono text-[11px] font-bold uppercase text-ink mb-1">Il tuo nome + team (opzionale)</label>
+                    <input type="text" id="new-event-creator" maxlength="35" placeholder="Es. Giulia (Product)"
+                        class="w-full px-3.5 py-2.5 rounded bg-paper border border-ink text-sm font-mono focus:outline-none focus:ring-2 focus:ring-terracotta">
+                </div>
+                <div class="flex items-center justify-end gap-2.5 pt-3 border-t border-ink/20">
+                    <button type="button" onclick="closeNewEventModal()" class="btn-tactile px-4 py-2 rounded text-xs font-mono font-bold uppercase bg-paper text-ink">
+                        Annulla
+                    </button>
+                    <button type="submit" class="btn-tactile px-5 py-2 rounded text-xs font-mono font-bold uppercase bg-terracotta text-paper">
+                        Crea e Apri &rarr;
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODALE: CONFERMA ELIMINAZIONE EVENTO -->
+    <div id="delete-event-modal" class="fixed inset-0 z-50 hidden bg-ink/60 backdrop-blur-[2px] flex items-center justify-center p-4">
+        <div class="bg-paperCard border-2 border-ink max-w-md w-full p-6 shadow-tactile-lg rounded-md">
+            <div class="w-11 h-11 bg-terracotta text-paper border border-ink shadow-tactile-sm flex items-center justify-center text-lg mb-4">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+            </div>
+            <h3 class="text-lg font-bold text-ink uppercase mb-1">Eliminare questo evento?</h3>
+            <p class="text-xs font-mono text-inkMuted mb-5 leading-relaxed">
+                Stai per rimuovere definitivamente <strong id="delete-modal-event-name" class="text-ink"></strong> e tutte le disponibilità inserite. Chi possiede il link non potrà più accedervi.
+            </p>
+            <div class="flex items-center justify-end gap-2.5">
+                <button onclick="closeDeleteEventModal()" class="btn-tactile px-4 py-2 rounded text-xs font-mono font-bold uppercase bg-paper text-ink">
+                    Annulla
+                </button>
+                <button onclick="executeDeleteEvent()" class="btn-tactile px-5 py-2 rounded text-xs font-mono font-bold uppercase bg-terracotta text-paper">
+                    Conferma Eliminazione
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TOAST NOTIFICHE STILE ETICHETTA ARCHIVIO -->
+    <div id="toast-container" class="fixed bottom-16 lg:bottom-5 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- LOGICA APPLICAZIONE & FIREBASE FIRESTORE -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // ============================================================================
+        // CONFIGURAZIONE FIREBASE (MEETAMI)
+        // ============================================================================
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'teamsync-multi-team-planner';
+        const defaultFirebaseConfig = {
+            apiKey: "AIzaSyAgbZZEvFzPRaWzO9pG-BzMmWpRSw45j_M",
+            authDomain: "meetami-1.firebaseapp.com",
+            projectId: "meetami-1",
+            storageBucket: "meetami-1.firebasestorage.app",
+            messagingSenderId: "797279267926",
+            appId: "1:797279267926:web:0a8a50871f2c8553c01ff7",
+            measurementId: "G-E7631KZM85"
+        };
+        const firebaseConfig = typeof __firebase_config !== 'undefined'
+            ? JSON.parse(__firebase_config)
+            : defaultFirebaseConfig;
+
+        // Giorni (Asse X) e Ore 08:00 - 24:00 (Asse Y)
+        const DAYS = ['Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato', 'Domenica'];
+        const DAYS_SHORT = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
+        const HOURS = Array.from({ length: 16 }, (_, i) => i + 8); // [8, 9, 10, ..., 23]
+
+        // Stato Globale (Accesso strettamente limitato al singolo evento del link)
+        let db = null;
+        let auth = null;
+        let currentUser = null;
+        let currentEventId = null;
+        let currentEventData = null;
+        let unsubscribeCurrentEvent = null;
+
+        // Stato Interazione Stile LettuceMeet
+        let interactionMode = 'group'; // 'group' (Risultati) oppure 'edit' (I Miei Orari)
+        let activeParticipant = null;
+        let inspectedSlotKey = '0_10';
+        let isDragging = false;
+        let dragTargetValue = true;
+        let lastTouchedSlotKey = null;
+
+        // Paginazione Giorni Mobile (< 640px)
+        let isMobileViewport = window.innerWidth < 640;
+        let mobileDayStart = 0; // Indice primo giorno visibile su mobile
+        let mobileDaysPerPage = 4; // Mostra 4 giorni comodi su smartphone (oppure 7 se sbloccato)
+
+        // Fallback in memoria locale nel caso di preview offline
+        let useLocalMemoryFallback = false;
+        let localEventsCache = {};
+
+        // ============================================================================
+        // 1. INIZIALIZZAZIONE E ROUTING PRIVATO TRAMITE ?event=ID
+        // ============================================================================
+        async function initApp() {
+            setupGlobalPointerAndTouchListeners();
+
+            window.addEventListener('resize', () => {
+                const nowMobile = window.innerWidth < 640;
+                if (nowMobile !== isMobileViewport) {
+                    isMobileViewport = nowMobile;
+                    buildScheduleSkeleton();
+                    renderGridAndStats();
+                }
+            });
+
+            const urlParams = new URLSearchParams(window.location.search);
+            const eventFromUrl = urlParams.get('event');
+            currentEventId = eventFromUrl ? eventFromUrl.trim() : null;
+
+            try {
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+
+                onAuthStateChanged(auth, (user) => {
+                    currentUser = user;
+                    if (user) {
+                        routeToCurrentState();
+                    }
+                });
+            } catch (err) {
+                console.warn("Modalità memoria locale attiva:", err.message);
+                useLocalMemoryFallback = true;
+                routeToCurrentState();
+            }
+        }
+
+        function routeToCurrentState() {
+            if (!currentEventId) {
+                showLandingView(false);
+            } else {
+                subscribeToSingleEvent(currentEventId);
+            }
+        }
+
+        // ============================================================================
+        // 2. SINCRONIZZAZIONE SINGOLO DOCUMENTO FIRESTORE (NESSUNA LISTA GLOBALE)
+        // ============================================================================
+        function getEventDocRef(eventId) {
+            return doc(db, 'artifacts', appId, 'public', 'data', 'schedule_events', eventId);
+        }
+
+        function subscribeToSingleEvent(eventId) {
+            if (unsubscribeCurrentEvent) {
+                unsubscribeCurrentEvent();
+                unsubscribeCurrentEvent = null;
+            }
+
+            if (useLocalMemoryFallback) {
+                const localEvt = localEventsCache[eventId];
+                if (!localEvt) {
+                    showLandingView(true);
+                } else {
+                    currentEventData = localEvt;
+                    showWorkspaceView();
+                }
+                return;
+            }
+
+            if (!currentUser) return;
+
+            const docRef = getEventDocRef(eventId);
+            unsubscribeCurrentEvent = onSnapshot(
+                docRef,
+                (docSnap) => {
+                    if (!docSnap.exists()) {
+                        currentEventData = null;
+                        showLandingView(true);
+                        return;
+                    }
+
+                    currentEventData = docSnap.data();
+
+                    // Se il partecipante attivo è stato rimosso, torna in vista gruppo
+                    if (activeParticipant && (!currentEventData.availabilities || !currentEventData.availabilities[activeParticipant])) {
+                        activeParticipant = null;
+                        interactionMode = 'group';
+                    }
+
+                    showWorkspaceView();
+                },
+                (error) => {
+                    console.error("Errore lettura stanza:", error);
+                    showToast("Errore di sincronizzazione con la stanza", "error");
+                }
+            );
+        }
+
+        async function saveCurrentEventToDatabase() {
+            if (!currentEventId || !currentEventData) return;
+
+            if (useLocalMemoryFallback) {
+                localEventsCache[currentEventId] = currentEventData;
+                renderAll();
+                return;
+            }
+
+            if (!currentUser) return;
+            try {
+                await setDoc(getEventDocRef(currentEventId), currentEventData);
+            } catch (err) {
+                console.error("Errore salvataggio evento:", err);
+                showToast("Impossibile salvare le modifiche", "error");
+            }
+        }
+
+        // ============================================================================
+        // 3. GESTIONE VISTE (LANDING vs WORKSPACE) E AZIONI STANZA
+        // ============================================================================
+        function showLandingView(showNotFoundBanner = false) {
+            document.getElementById('landing-view').classList.remove('hidden');
+            document.getElementById('workspace-view').classList.add('hidden');
+            document.getElementById('header-share-btn').classList.add('hidden');
+            document.getElementById('mobile-bottom-inspector').classList.add('hidden');
+
+            const alertEl = document.getElementById('not-found-alert');
+            if (showNotFoundBanner) {
+                alertEl.classList.remove('hidden');
+            } else {
+                alertEl.classList.add('hidden');
+            }
+        }
+
+        function showWorkspaceView() {
+            document.getElementById('landing-view').classList.add('hidden');
+            document.getElementById('workspace-view').classList.remove('hidden');
+            document.getElementById('header-share-btn').classList.remove('hidden');
+            document.getElementById('mobile-bottom-inspector').classList.remove('hidden');
+
+            buildScheduleSkeleton();
+            renderAll();
+        }
+
+        window.goHomeNewEvent = function(e) {
+            if (e) e.preventDefault();
+            if (unsubscribeCurrentEvent) {
+                unsubscribeCurrentEvent();
+                unsubscribeCurrentEvent = null;
+            }
+            currentEventId = null;
+            currentEventData = null;
+            activeParticipant = null;
+            interactionMode = 'group';
+            updateUrlParam(null);
+            showLandingView(false);
+        };
+
+        window.handleOpenExistingCode = function(e) {
+            e.preventDefault();
+            const rawInput = document.getElementById('join-event-code-input').value.trim();
+            if (!rawInput) return;
+
+            let extractedId = rawInput;
+            try {
+                if (rawInput.includes('?')) {
+                    const url = new URL(rawInput, window.location.origin);
+                    const param = url.searchParams.get('event');
+                    if (param) extractedId = param;
+                }
+            } catch (_) {}
+
+            currentEventId = extractedId.trim();
+            activeParticipant = null;
+            interactionMode = 'group';
+            updateUrlParam(currentEventId);
+            subscribeToSingleEvent(currentEventId);
+        };
+
+        window.handleCreateEvent = async function(e, source = 'modal') {
+            e.preventDefault();
+            const prefix = source === 'landing' ? 'landing-event' : 'new-event';
+
+            const titleInput = document.getElementById(`${prefix}-title`);
+            const descInput = document.getElementById(`${prefix}-desc`);
+            const creatorInput = document.getElementById(`${prefix}-creator`);
+
+            const title = titleInput.value.trim();
+            const description = descInput.value.trim() || 'Inserisci il tuo nome e traccia gli orari in cui sei disponibile.';
+            const creator = creatorInput.value.trim();
+
+            if (!title) return;
+
+            const newId = 'evt_' + Math.random().toString(36).substring(2, 10);
+            const availabilities = {};
+            if (creator) {
+                availabilities[creator] = [];
+            }
+
+            const newEvent = {
+                id: newId,
+                title,
+                description,
+                createdAt: Date.now(),
+                availabilities
+            };
+
+            currentEventId = newId;
+            currentEventData = newEvent;
+            if (creator) {
+                activeParticipant = creator;
+                interactionMode = 'edit';
+            } else {
+                activeParticipant = null;
+                interactionMode = 'group';
+            }
+
+            updateUrlParam(newId);
+            await saveCurrentEventToDatabase();
+            closeNewEventModal();
+
+            titleInput.value = '';
+            descInput.value = '';
+            creatorInput.value = '';
+
+            subscribeToSingleEvent(newId);
+            showToast("Evento creato! Condividi il link con i team.", "success");
+        };
+
+        window.confirmDeleteEvent = function() {
+            if (!currentEventData) return;
+            document.getElementById('delete-modal-event-name').textContent = `"${currentEventData.title}"`;
+            document.getElementById('delete-event-modal').classList.remove('hidden');
+        };
+
+        window.closeDeleteEventModal = function() {
+            document.getElementById('delete-event-modal').classList.add('hidden');
+        };
+
+        window.executeDeleteEvent = async function() {
+            const idToDelete = currentEventId;
+            closeDeleteEventModal();
+            if (!idToDelete) return;
+
+            if (unsubscribeCurrentEvent) {
+                unsubscribeCurrentEvent();
+                unsubscribeCurrentEvent = null;
+            }
+
+            if (useLocalMemoryFallback) {
+                delete localEventsCache[idToDelete];
+                currentEventId = null;
+                currentEventData = null;
+                activeParticipant = null;
+                updateUrlParam(null);
+                showLandingView(false);
+                showToast("Evento eliminato", "info");
+                return;
+            }
+
+            if (!currentUser) return;
+            try {
+                await deleteDoc(getEventDocRef(idToDelete));
+                currentEventId = null;
+                currentEventData = null;
+                activeParticipant = null;
+                updateUrlParam(null);
+                showLandingView(false);
+                showToast("Evento eliminato definitivamente", "info");
+            } catch (err) {
+                console.error("Errore eliminazione:", err);
+                showToast("Errore durante l'eliminazione", "error");
+            }
+        };
+
+        function updateUrlParam(eventId) {
+            try {
+                const url = new URL(window.location.href);
+                if (eventId) {
+                    url.searchParams.set('event', eventId);
+                } else {
+                    url.searchParams.delete('event');
+                }
+                window.history.replaceState({}, '', url.toString());
+            } catch (_) {}
+        }
+
+        window.shareOrCopyEventLink = async function() {
+            if (!currentEventId) return;
+            let shareUrl = window.location.href;
+            try {
+                const url = new URL(window.location.href);
+                url.searchParams.set('event', currentEventId);
+                shareUrl = url.toString();
+            } catch (_) {
+                shareUrl = window.location.origin + window.location.pathname + '?event=' + currentEventId;
+            }
+
+            // Su smartphone usa il menu di condivisione nativo se disponibile
+            if (navigator.share && isMobileViewport) {
+                try {
+                    await navigator.share({
+                        title: `Meetami // ${currentEventData?.title || 'Pianificazione Incontro'}`,
+                        text: 'Segna i tuoi orari disponibili su Meetami:',
+                        url: shareUrl
+                    });
+                    return;
+                } catch (_) {
+                    // Se l'utente annulla, prosegue con la copia negli appunti
+                }
+            }
+
+            const tempInput = document.createElement('textarea');
+            tempInput.value = shareUrl;
+            document.body.appendChild(tempInput);
+            tempInput.select();
+            document.execCommand('copy');
+            document.body.removeChild(tempInput);
+
+            showToast("Link privato copiato negli appunti!", "success");
+        };
+
+        // ============================================================================
+        // 4. COSTRUZIONE MATRICE ORARIA E PAGINAZIONE MOBILE (STILE LETTUCEMEET)
+        // ============================================================================
+        function getVisibleDayIndices() {
+            if (!isMobileViewport || mobileDaysPerPage === 7) {
+                return [0, 1, 2, 3, 4, 5, 6];
+            }
+            const indices = [];
+            for (let i = 0; i < mobileDaysPerPage; i++) {
+                if (mobileDayStart + i < 7) {
+                    indices.push(mobileDayStart + i);
+                }
+            }
+            return indices;
+        }
+
+        window.shiftMobileDays = function(direction) {
+            const step = 3;
+            const nextStart = mobileDayStart + direction * step;
+            mobileDayStart = Math.max(0, Math.min(7 - mobileDaysPerPage, nextStart));
+            buildScheduleSkeleton();
+            renderGridAndStats();
+        };
+
+        window.toggleMobileAllDaysView = function() {
+            mobileDaysPerPage = mobileDaysPerPage === 7 ? 4 : 7;
+            mobileDayStart = 0;
+            buildScheduleSkeleton();
+            renderGridAndStats();
+        };
+
+        function buildScheduleSkeleton() {
+            const headerRow = document.getElementById('schedule-grid-header-row');
+            const tbody = document.getElementById('schedule-grid-body');
+            if (!headerRow || !tbody) return;
+
+            const visibleDays = getVisibleDayIndices();
+
+            // Aggiorna controlli paginatore mobile
+            const prevBtn = document.getElementById('mobile-prev-days');
+            const nextBtn = document.getElementById('mobile-next-days');
+            const rangeLabel = document.getElementById('mobile-days-range-label');
+            const toggle7dBtn = document.getElementById('mobile-toggle-7d-btn');
+
+            if (prevBtn && nextBtn && rangeLabel && toggle7dBtn) {
+                prevBtn.disabled = mobileDaysPerPage === 7 || mobileDayStart === 0;
+                nextBtn.disabled = mobileDaysPerPage === 7 || (mobileDayStart + mobileDaysPerPage >= 7);
+                const firstDay = DAYS_SHORT[visibleDays[0]].toUpperCase();
+                const lastDay = DAYS_SHORT[visibleDays[visibleDays.length - 1]].toUpperCase();
+                rangeLabel.textContent = `${firstDay} — ${lastDay}`;
+                toggle7dBtn.textContent = mobileDaysPerPage === 7 ? '4G' : '7G';
+                toggle7dBtn.className = `px-2 py-0.5 font-mono text-[10px] font-bold uppercase border border-ink rounded ${
+                    mobileDaysPerPage === 7 ? 'bg-ink text-paper' : 'bg-paperCard text-ink'
+                }`;
+            }
+
+            // Costruisci Header Colonne Giorni
+            headerRow.innerHTML = '';
+            const thTime = document.createElement('th');
+            thTime.className = 'w-16 sm:w-24 py-2 px-1.5 sm:px-2.5 text-left font-mono text-[10px] font-bold uppercase tracking-wider text-inkMuted border-r border-ink sticky left-0 bg-paperDark z-10';
+            thTime.textContent = 'ORA';
+            headerRow.appendChild(thTime);
+
+            visibleDays.forEach(dayIdx => {
+                const isWeekend = dayIdx >= 5;
+                const th = document.createElement('th');
+                th.className = `py-2 px-1 text-center border-r border-ink last:border-r-0 ${isWeekend ? 'bg-amberWarm/10' : ''}`;
+                th.innerHTML = `
+                    <div class="font-mono text-[9px] ${isWeekend ? 'text-terracotta' : 'text-inkMuted'}">G.0${dayIdx + 1}</div>
+                    <div class="font-bold text-xs uppercase text-ink">${DAYS_SHORT[dayIdx]}</div>
+                    <button onclick="toggleWholeDay(${dayIdx})" title="Seleziona/Deseleziona tutto ${DAYS[dayIdx]}"
+                        class="mt-1 px-1.5 py-0.2 font-mono text-[9px] uppercase border border-ink/40 bg-paper hover:bg-ink hover:text-paper transition rounded-sm">
+                        Tutti
+                    </button>
+                `;
+                headerRow.appendChild(th);
+            });
+
+            // Costruisci Righe Orarie 08:00 - 24:00
+            tbody.innerHTML = '';
+            HOURS.forEach(hour => {
+                const nextHour = hour + 1;
+                const shortTime = `${String(hour).padStart(2, '0')}:00`;
+                const fullTime = `${String(hour).padStart(2, '0')}:00—${String(nextHour).padStart(2, '0')}:00`;
+
+                const tr = document.createElement('tr');
+                tr.className = 'border-b border-ink/30 last:border-b-0';
+
+                // Colonna Y: Fascia Oraria
+                const tdHour = document.createElement('td');
+                tdHour.className = 'py-1.5 px-1.5 sm:px-2.5 font-mono text-[10px] sm:text-[11px] font-bold text-ink whitespace-nowrap border-r border-ink bg-paperDark/90 sticky left-0 z-10';
+                tdHour.innerHTML = `<span class="sm:hidden">${shortTime}</span><span class="hidden sm:inline">${fullTime}</span>`;
+                tr.appendChild(tdHour);
+
+                // Colonne X: Giorni visibili
+                visibleDays.forEach(dayIdx => {
+                    const slotKey = `${dayIdx}_${hour}`;
+                    const td = document.createElement('td');
+                    td.id = `cell-${slotKey}`;
+                    td.dataset.slot = slotKey;
+                    td.dataset.day = dayIdx;
+                    td.dataset.hour = hour;
+                    td.className = 'slot-cell p-1 border-r border-ink/30 last:border-r-0 text-center cursor-pointer select-none h-10 sm:h-9 relative';
+
+                    // Mouse Desktop
+                    td.addEventListener('mousedown', (e) => {
+                        if (e.button !== 0) return;
+                        e.preventDefault();
+                        handlePointerDownOnSlot(slotKey);
+                    });
+                    td.addEventListener('mouseenter', () => {
+                        inspectSlot(slotKey);
+                        if (isDragging && interactionMode === 'edit') {
+                            applySlotChange(slotKey, dragTargetValue);
+                        }
+                    });
+
+                    // Touch Mobile (LettuceMeet drag-to-paint in modalità Edit, tap-to-inspect in modalità Gruppo)
+                    td.addEventListener('touchstart', (e) => {
+                        if (interactionMode === 'edit') {
+                            if (e.cancelable) e.preventDefault();
+                            lastTouchedSlotKey = slotKey;
+                            handlePointerDownOnSlot(slotKey);
+                        } else {
+                            inspectSlot(slotKey);
+                        }
+                    }, { passive: false });
+
+                    tr.appendChild(td);
+                });
+
+                tbody.appendChild(tr);
+            });
+        }
+
+        function setupGlobalPointerAndTouchListeners() {
+            window.addEventListener('mouseup', () => {
+                if (isDragging) {
+                    isDragging = false;
+                    lastTouchedSlotKey = null;
+                }
+            });
+
+            window.addEventListener('touchmove', (e) => {
+                if (!isDragging || interactionMode !== 'edit') return;
+                if (e.cancelable) e.preventDefault();
+
+                const touch = e.touches[0];
+                if (!touch) return;
+
+                const targetEl = document.elementFromPoint(touch.clientX, touch.clientY);
+                const cell = targetEl ? targetEl.closest('.slot-cell') : null;
+                if (cell && cell.dataset.slot && cell.dataset.slot !== lastTouchedSlotKey) {
+                    lastTouchedSlotKey = cell.dataset.slot;
+                    inspectSlot(cell.dataset.slot);
+                    applySlotChange(cell.dataset.slot, dragTargetValue);
+                }
+            }, { passive: false });
+
+            window.addEventListener('touchend', () => {
+                if (isDragging) {
+                    isDragging = false;
+                    lastTouchedSlotKey = null;
+                }
+            });
+        }
+
+        // ============================================================================
+        // 5. MODALITÀ INTERAZIONE (GRUPPO vs I MIEI ORARI) E PARTECIPANTI
+        // ============================================================================
+        window.switchInteractionMode = function(mode) {
+            if (mode === 'edit' && !activeParticipant) {
+                const input = document.getElementById('participant-name-input');
+                showToast("Inserisci il tuo nome qui sopra per segnare i tuoi orari!", "warning");
+                input.focus();
+                return;
+            }
+            interactionMode = mode;
+            renderAll();
+        };
+
+        window.handleAddOrSelectParticipant = async function(e) {
+            e.preventDefault();
+            const input = document.getElementById('participant-name-input');
+            const rawName = input.value.trim();
+            if (!rawName || !currentEventData) return;
+
+            if (!currentEventData.availabilities) currentEventData.availabilities = {};
+
+            const existingName = Object.keys(currentEventData.availabilities).find(
+                k => k.toLowerCase() === rawName.toLowerCase()
+            );
+
+            if (existingName) {
+                activeParticipant = existingName;
+                interactionMode = 'edit';
+                showToast(`Bentornato "${existingName}"! Trascina sulla griglia per segnare gli orari.`, "info");
+            } else {
+                currentEventData.availabilities[rawName] = [];
+                activeParticipant = rawName;
+                interactionMode = 'edit';
+                await saveCurrentEventToDatabase();
+                showToast(`"${rawName}" aggiunto! Segna i tuoi orari sulla griglia.`, "success");
+            }
+
+            input.value = '';
+            renderAll();
+        };
+
+        window.selectParticipantByName = function(name) {
+            activeParticipant = name;
+            interactionMode = 'edit';
+            renderAll();
+        };
+
+        window.removeParticipant = async function(name, domEvent) {
+            if (domEvent) domEvent.stopPropagation();
+            if (!currentEventData || !currentEventData.availabilities || !currentEventData.availabilities[name]) return;
+
+            delete currentEventData.availabilities[name];
+            if (activeParticipant === name) {
+                activeParticipant = null;
+                interactionMode = 'group';
+            }
+            await saveCurrentEventToDatabase();
+            renderAll();
+            showToast(`Partecipante "${name}" rimosso`, "info");
+        };
+
+        window.clearMyAvailability = async function() {
+            if (!activeParticipant || !currentEventData || !currentEventData.availabilities) return;
+            currentEventData.availabilities[activeParticipant] = [];
+            await saveCurrentEventToDatabase();
+            renderAll();
+            showToast(`Orari di ${activeParticipant} azzerati`, "info");
+        };
+
+        function handlePointerDownOnSlot(slotKey) {
+            inspectSlot(slotKey);
+
+            if (interactionMode !== 'edit') {
+                return;
+            }
+
+            if (!activeParticipant) {
+                showToast("Inserisci prima il tuo nome per segnare le disponibilità!", "warning");
+                document.getElementById('participant-name-input').focus();
+                return;
+            }
+
+            const currentList = currentEventData?.availabilities?.[activeParticipant] || [];
+            const hasSlot = currentList.includes(slotKey);
+
+            isDragging = true;
+            dragTargetValue = !hasSlot;
+            applySlotChange(slotKey, dragTargetValue);
+        }
+
+        async function applySlotChange(slotKey, shouldBeAvailable) {
+            if (!activeParticipant || !currentEventData) return;
+            if (!currentEventData.availabilities) currentEventData.availabilities = {};
+            if (!currentEventData.availabilities[activeParticipant]) {
+                currentEventData.availabilities[activeParticipant] = [];
+            }
+
+            const slots = currentEventData.availabilities[activeParticipant];
+            const idx = slots.indexOf(slotKey);
+
+            let changed = false;
+            if (shouldBeAvailable && idx === -1) {
+                slots.push(slotKey);
+                changed = true;
+            } else if (!shouldBeAvailable && idx !== -1) {
+                slots.splice(idx, 1);
+                changed = true;
+            }
+
+            if (changed) {
+                renderParticipantsSection();
+                renderGridAndStats();
+                inspectSlot(slotKey);
+                await saveCurrentEventToDatabase();
+            }
+        }
+
+        window.toggleWholeDay = async function(dayIdx) {
+            if (!activeParticipant) {
+                showToast("Inserisci o seleziona prima il tuo nome per segnare l'intera giornata!", "warning");
+                document.getElementById('participant-name-input').focus();
+                return;
+            }
+            if (!currentEventData) return;
+            interactionMode = 'edit';
+
+            if (!currentEventData.availabilities) currentEventData.availabilities = {};
+            const mySlots = new Set(currentEventData.availabilities[activeParticipant] || []);
+            const daySlotKeys = HOURS.map(h => `${dayIdx}_${h}`);
+            const allSelected = daySlotKeys.every(k => mySlots.has(k));
+
+            if (allSelected) {
+                daySlotKeys.forEach(k => mySlots.delete(k));
+            } else {
+                daySlotKeys.forEach(k => mySlots.add(k));
+            }
+
+            currentEventData.availabilities[activeParticipant] = Array.from(mySlots);
+            renderAll();
+            await saveCurrentEventToDatabase();
+        };
+
+        // ============================================================================
+        // 6. RENDERING INTERFACCIA E HEATMAP FARFLUNG
+        // ============================================================================
+        function renderAll() {
+            if (!currentEventData) return;
+
+            // Header Evento
+            document.getElementById('current-event-title').textContent = currentEventData.title;
+            document.getElementById('current-event-desc').textContent = currentEventData.description || '';
+            document.getElementById('current-event-id-badge').textContent = `ID: ${currentEventData.id}`;
+
+            // Stato Tabs Modalità (LettuceMeet style)
+            const tabGroupBtn = document.getElementById('tab-group-btn');
+            const tabEditBtn = document.getElementById('tab-edit-btn');
+            const tabEditLabel = document.getElementById('tab-edit-label');
+            const tableEl = document.getElementById('schedule-table');
+
+            tabEditLabel.textContent = activeParticipant ? `I Miei Orari (${activeParticipant})` : 'I Miei Orari';
+
+            if (interactionMode === 'edit' && activeParticipant) {
+                tabEditBtn.className = 'px-3.5 py-2 rounded text-xs font-mono font-bold uppercase tracking-wider transition flex items-center justify-center gap-2 bg-cobalt text-paper shadow-tactile-sm border border-ink';
+                tabGroupBtn.className = 'px-3.5 py-2 rounded text-xs font-mono font-bold uppercase tracking-wider transition flex items-center justify-center gap-2 text-ink hover:bg-paper';
+                tableEl.classList.remove('view-mode-grid');
+                tableEl.classList.add('edit-mode-grid');
+            } else {
+                tabGroupBtn.className = 'px-3.5 py-2 rounded text-xs font-mono font-bold uppercase tracking-wider transition flex items-center justify-center gap-2 bg-ink text-paper shadow-tactile-sm border border-ink';
+                tabEditBtn.className = 'px-3.5 py-2 rounded text-xs font-mono font-bold uppercase tracking-wider transition flex items-center justify-center gap-2 text-ink hover:bg-paper';
+                tableEl.classList.remove('edit-mode-grid');
+                tableEl.classList.add('view-mode-grid');
+            }
+
+            renderParticipantsSection();
+            renderGridAndStats();
+            if (inspectedSlotKey) {
+                inspectSlot(inspectedSlotKey);
+            }
+        }
+
+        function renderParticipantsSection() {
+            const listEl = document.getElementById('participants-list');
+            const badgeEl = document.getElementById('participants-count-badge');
+            const bannerEl = document.getElementById('active-user-banner');
+            const modePill = document.getElementById('mode-indicator-pill');
+
+            const availabilities = currentEventData?.availabilities || {};
+            const names = Object.keys(availabilities);
+            badgeEl.textContent = `${names.length} PRESENT${names.length === 1 ? 'E' : 'I'}`;
+
+            if (interactionMode === 'edit' && activeParticipant) {
+                bannerEl.classList.remove('hidden');
+                document.getElementById('active-user-name').textContent = activeParticipant;
+                modePill.textContent = `MODIFICA ATTIVA // TRASCINA SULLE CELLE PER ${activeParticipant.toUpperCase()}`;
+                modePill.className = 'px-2.5 py-0.5 text-[10px] sm:text-[11px] font-mono font-bold uppercase border border-ink bg-cobalt text-paper';
+            } else {
+                bannerEl.classList.add('hidden');
+                modePill.textContent = 'VISTA GRUPPO // TOCCA UNA CELLA PER VEDERE CHI C\'È';
+                modePill.className = 'px-2.5 py-0.5 text-[10px] sm:text-[11px] font-mono font-bold uppercase border border-ink bg-amberWarm/30 text-ink';
+            }
+
+            if (names.length === 0) {
+                listEl.innerHTML = `<p class="font-mono text-xs text-inkMuted italic text-center py-2">Nessun partecipante. Scrivi il tuo nome in alto per iniziare.</p>`;
+                return;
+            }
+
+            listEl.innerHTML = '';
+            names.forEach(name => {
+                const slotCount = (availabilities[name] || []).length;
+                const isMe = name === activeParticipant && interactionMode === 'edit';
+
+                const row = document.createElement('div');
+                row.onclick = () => window.selectParticipantByName(name);
+                row.className = `flex items-center justify-between gap-2 px-3 py-2 rounded text-xs cursor-pointer transition border ${
+                    isMe
+                        ? 'bg-cobalt text-paper border-ink font-bold shadow-tactile-sm'
+                        : 'bg-paper hover:bg-paperDark text-ink border-ink/50'
+                }`;
+
+                row.innerHTML = `
+                    <div class="flex items-center gap-2 truncate">
+                        <span class="w-2 h-2 rounded-full border border-ink ${isMe ? 'bg-amberWarm' : 'bg-sage-500'}"></span>
+                        <span class="truncate">${escapeHtml(name)}</span>
+                    </div>
+                    <div class="flex items-center gap-1.5 shrink-0 font-mono">
+                        <span class="px-1.5 py-0.5 text-[10px] border ${
+                            isMe ? 'bg-ink text-paper border-paper/30' : 'bg-paperCard text-ink border-ink/30'
+                        }">${slotCount}h</span>
+                        <button onclick="removeParticipant('${escapeJsString(name)}', event)" title="Rimuovi partecipante"
+                            class="p-1 rounded hover:bg-terracotta hover:text-paper transition ${
+                                isMe ? 'text-paper/80' : 'text-inkMuted'
+                            }">
+                            <i class="fa-solid fa-xmark text-[11px]"></i>
+                        </button>
+                    </div>
+                `;
+                listEl.appendChild(row);
+            });
+        }
+
+        function renderGridAndStats() {
+            const availabilities = currentEventData?.availabilities || {};
+            const participants = Object.keys(availabilities);
+            const totalParticipants = participants.length;
+
+            const slotCounts = {};
+            let maxOverlap = 0;
+
+            for (let d = 0; d < 7; d++) {
+                for (const h of HOURS) {
+                    const key = `${d}_${h}`;
+                    let count = 0;
+                    participants.forEach(p => {
+                        if ((availabilities[p] || []).includes(key)) {
+                            count++;
+                        }
+                    });
+                    slotCounts[key] = count;
+                    if (count > maxOverlap) {
+                        maxOverlap = count;
+                    }
+                }
+            }
+
+            const mySlots = activeParticipant ? (availabilities[activeParticipant] || []) : [];
+
+            for (let d = 0; d < 7; d++) {
+                for (const h of HOURS) {
+                    const key = `${d}_${h}`;
+                    const cell = document.getElementById(`cell-${key}`);
+                    if (!cell) continue;
+
+                    const count = slotCounts[key] || 0;
+                    const isMine = mySlots.includes(key);
+                    const isBest = maxOverlap > 0 && count === maxOverlap && totalParticipants > 1;
+                    const isInspected = key === inspectedSlotKey;
+
+                    let bgClass = 'bg-paperCard hover:bg-paperDark text-inkMuted';
+                    if (count > 0 && totalParticipants > 0) {
+                        const ratio = count / totalParticipants;
+                        if (ratio <= 0.34) {
+                            bgClass = 'bg-sage-100 text-ink';
+                        } else if (ratio <= 0.67) {
+                            bgClass = 'bg-sage-300 text-ink font-bold';
+                        } else if (ratio < 1) {
+                            bgClass = 'bg-sage-500 text-paper font-bold';
+                        } else {
+                            bgClass = 'bg-sage-700 text-paper font-bold';
+                        }
+                    }
+
+                    cell.className = `slot-cell p-1 border-r border-ink/30 last:border-r-0 text-center cursor-pointer select-none h-10 sm:h-9 relative ${bgClass} ${
+                        isMine ? 'my-slot-active' : ''
+                    } ${isBest && !isMine ? 'best-slot-ring' : ''} ${isInspected ? 'slot-inspected' : ''}`;
+
+                    if (count === 0) {
+                        cell.innerHTML = `<span class="text-[10px] opacity-25">&middot;</span>`;
+                    } else {
+                        cell.innerHTML = `
+                            <div class="flex items-center justify-center gap-1 text-[11px] font-mono leading-none">
+                                <span>${count}/${totalParticipants}</span>
+                                ${isMine ? '<span class="w-2 h-2 rounded-full bg-cobalt border border-paper inline-block" title="Tuo orario"></span>' : ''}
+                                ${isBest ? '<span class="w-2 h-2 rounded-full bg-amberWarm border border-ink inline-block" title="Miglior slot"></span>' : ''}
+                            </div>
+                        `;
+                    }
+                }
+            }
+
+            renderBestSlotsSummary(slotCounts, maxOverlap, totalParticipants);
+        }
+
+        function renderBestSlotsSummary(slotCounts, maxOverlap, totalParticipants) {
+            const container = document.getElementById('best-slots-container');
+            if (totalParticipants === 0 || maxOverlap === 0) {
+                container.innerHTML = `<div class="font-mono text-xs text-inkMuted">Nessuna sovrapposizione ancora registrata.</div>`;
+                return;
+            }
+
+            const bestKeys = Object.keys(slotCounts).filter(k => slotCounts[k] === maxOverlap);
+            const topKeys = bestKeys.slice(0, 6);
+
+            let html = `
+                <div class="font-mono text-[11px] text-ink mb-2.5 flex items-center justify-between">
+                    <span>MASSIMA PRESENZA:</span>
+                    <strong class="px-2 py-0.5 bg-sage-100 border border-ink text-sage-700">${maxOverlap}/${totalParticipants} PRESENTI</strong>
+                </div>
+                <div class="flex flex-wrap gap-1.5">
+            `;
+
+            topKeys.forEach(key => {
+                const [dStr, hStr] = key.split('_');
+                const dayIdx = parseInt(dStr, 10);
+                const dayName = DAYS_SHORT[dayIdx].toUpperCase();
+                const hourNum = parseInt(hStr, 10);
+                const label = `${dayName} ${String(hourNum).padStart(2, '0')}:00`;
+                html += `
+                    <button onclick="focusAndInspectSlot('${key}')" class="btn-tactile px-2 py-1 rounded text-[11px] font-mono font-bold bg-amberWarm/30 hover:bg-amberWarm/60 text-ink flex items-center gap-1">
+                        <span class="w-1.5 h-1.5 rounded-full bg-terracotta inline-block"></span>
+                        <span>${label}</span>
+                    </button>
+                `;
+            });
+
+            if (bestKeys.length > 6) {
+                html += `<span class="font-mono text-[10px] text-inkMuted self-center ml-1">+${bestKeys.length - 6} ALTRI</span>`;
+            }
+
+            html += `</div>`;
+            container.innerHTML = html;
+        }
+
+        window.focusAndInspectSlot = function(slotKey) {
+            const [dStr] = slotKey.split('_');
+            const dayIdx = parseInt(dStr, 10);
+
+            if (isMobileViewport && mobileDaysPerPage < 7) {
+                if (dayIdx < mobileDayStart || dayIdx >= mobileDayStart + mobileDaysPerPage) {
+                    mobileDayStart = Math.max(0, Math.min(7 - mobileDaysPerPage, dayIdx));
+                    buildScheduleSkeleton();
+                }
+            }
+            inspectSlot(slotKey);
+        };
+
+        window.inspectSlot = function(slotKey) {
+            if (!currentEventData) return;
+            inspectedSlotKey = slotKey;
+
+            // Aggiorna evidenziazione visiva cella ispezionata
+            document.querySelectorAll('.slot-inspected').forEach(el => el.classList.remove('slot-inspected'));
+            const activeCell = document.getElementById(`cell-${slotKey}`);
+            if (activeCell) activeCell.classList.add('slot-inspected');
+
+            const [dayIdxStr, hourStr] = slotKey.split('_');
+            const dayName = DAYS[parseInt(dayIdxStr, 10)].toUpperCase();
+            const hour = parseInt(hourStr, 10);
+            const timeLabel = `${String(hour).padStart(2, '0')}:00—${String(hour + 1).padStart(2, '0')}:00`;
+
+            const availabilities = currentEventData.availabilities || {};
+            const allParticipants = Object.keys(availabilities);
+            const availableList = [];
+            const missingList = [];
+
+            allParticipants.forEach(p => {
+                if ((availabilities[p] || []).includes(slotKey)) {
+                    availableList.push(p);
+                } else {
+                    missingList.push(p);
+                }
+            });
+
+            // Pannello Laterale
+            document.getElementById('inspector-title').textContent = `${dayName} // ${timeLabel}`;
+            document.getElementById('inspector-badge').textContent = `${availableList.length}/${allParticipants.length} LIBERI`;
+
+            const availEl = document.getElementById('inspector-available');
+            const missEl = document.getElementById('inspector-missing');
+
+            if (availableList.length > 0) {
+                availEl.innerHTML = `<span class="font-mono text-[10px] uppercase bg-sage-100 border border-ink px-1 py-0.2 mr-1 text-ink font-bold">PRESENTI:</span> ${availableList.map(escapeHtml).join(', ')}`;
+            } else {
+                availEl.innerHTML = `<span class="font-mono text-[11px] text-inkMuted">Nessun partecipante libero in questo slot.</span>`;
+            }
+
+            if (missingList.length > 0) {
+                missEl.innerHTML = `<span class="font-mono text-[10px] uppercase bg-paperDark border border-ink/40 px-1 py-0.2 mr-1 text-inkMuted">ASSENTI:</span> ${missingList.map(escapeHtml).join(', ')}`;
+            } else {
+                missEl.innerHTML = '';
+            }
+
+            // Barra Mobile Fissa in Basso (Stile LettuceMeet)
+            document.getElementById('mobile-inspector-title').textContent = `${dayName} ${timeLabel}`;
+            document.getElementById('mobile-inspector-badge').textContent = `${availableList.length}/${allParticipants.length} LIBERI`;
+            const mobileBody = document.getElementById('mobile-inspector-body');
+            if (availableList.length > 0) {
+                mobileBody.innerHTML = `<strong class="text-sage-700">Presenti:</strong> ${availableList.map(escapeHtml).join(', ')}`;
+            } else {
+                mobileBody.textContent = 'Nessun partecipante disponibile in questa fascia oraria.';
+            }
+        };
+
+        // ============================================================================
+        // 7. MODALI E UTILITY UI
+        // ============================================================================
+        window.openNewEventModal = function() {
+            document.getElementById('new-event-modal').classList.remove('hidden');
+            setTimeout(() => document.getElementById('new-event-title').focus(), 50);
+        };
+
+        window.closeNewEventModal = function() {
+            document.getElementById('new-event-modal').classList.add('hidden');
+        };
+
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+
+            let accentBar = 'bg-cobalt';
+            if (type === 'success') accentBar = 'bg-sage-500';
+            else if (type === 'warning') accentBar = 'bg-amberWarm';
+            else if (type === 'error') accentBar = 'bg-terracotta';
+
+            toast.className = `pointer-events-auto flex items-stretch bg-paperCard text-ink border-2 border-ink shadow-tactile text-xs font-mono transition-all duration-300 overflow-hidden max-w-sm`;
+            toast.innerHTML = `
+                <div class="w-2 ${accentBar} border-r border-ink shrink-0"></div>
+                <div class="px-3.5 py-2.5 font-bold">${escapeHtml(message)}</div>
+            `;
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        function escapeHtml(str) {
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function escapeJsString(str) {
+            return String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+        }
+
+        window.addEventListener('DOMContentLoaded', initApp);
+    </script>
+</body>
+</html>

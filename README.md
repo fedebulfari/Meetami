@@ -62,3 +62,7 @@ Contributions, bug reports, and feature suggestions are welcome! Feel free to op
 
 ## 📄 License
 Distributed under the MIT License. See `LICENSE` for more details.
+
+## AI usage in development
+
+100%
